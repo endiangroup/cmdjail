@@ -168,4 +168,48 @@ Describe 'cmdjail.sh'
       The stderr should include "[error]: no command"
     End
   End
+  # Describe 'security vulnerabilities'
+  # cleanup() {
+  #   rm -f bin/.cmd.jail
+  #   rm -f /tmp/cmdjail.log
+  #   rm -f /tmp/evil.sh
+  # }
+  # AfterEach cleanup
+  #   It 'is vulnerable to command injection via backticks'
+  #   Path triggered=.subshell
+  #     cmdjail() {
+  #       # Create a whitelist with only 'echo' allowed
+  #       echo "echo" > bin/.cmd.jail
+  #
+  #       # Run a command that should be blocked, but using backtick execution
+  #       # The whitelist check only looks at the first word (echo), but the
+  #       # backticks will be evaluated when the command is executed
+  #       DEBUG=true bin/cmdjail.sh -- "echo `touch .subshell && id`"
+  #     }
+  #     When run cmdjail
+  #     The status should equal 126
+  #     # If the test passes with exit code 0 and shows uid output, it means 'id' was executed
+  #     # despite not being in the whitelist
+  #     The path triggered should not be file
+  #     The stdout should not include "uid="
+  #   End
+    # It 'is vulnerable to command injection via subshell expression'
+    #   cmdjail() {
+    #     # Create a whitelist with only 'echo' allowed
+    #     echo "echo" > bin/.cmd.jail
+    #
+    #     # Create a file that will execute the 'id' command when sourced
+    #     echo "id" > /tmp/evil.sh
+    #     chmod +x /tmp/evil.sh
+    #
+    #     # Run a command that should be blocked, but using command substitution
+    #     # The whitelist check only looks at the first word (echo), but the
+    #     # command substitution will be expanded when executed
+    #     bin/cmdjail.sh -- "echo $(sh /tmp/evil.sh)"
+    #   }
+    #   When run cmdjail
+    #   The status should equal 0
+    #   The stdout should not include "uid="
+    # End
+  # End
 End
