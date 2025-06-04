@@ -18,16 +18,21 @@ if [ ! -f ${CMDJAIL_FILENAME} -a ! -f ${DIR}/${CMDJAIL_FILENAME} ]; then
   exit 126
 fi
 
-FOUND_DOUBLE_DASH=false
 ARGS_AFTER_DOUBLE_DASH=()
-# Use everything after a `--` to set the $INTENDED_CMD
-for arg in "$@"; do
-    if [ "$FOUND_DOUBLE_DASH" = true ]; then
-        ARGS_AFTER_DOUBLE_DASH+=("$arg")
-    elif [ "$arg" = "--" ]; then
-        FOUND_DOUBLE_DASH=true
+# Use everything after the last `--` to set the $INTENDED_CMD
+LAST_DOUBLE_DASH_INDEX=-1
+for ((i=${#@}; i>=1; i--)); do
+    if [ "${!i}" = "--" ]; then
+        LAST_DOUBLE_DASH_INDEX=$i
+        break
     fi
 done
+
+if [ $LAST_DOUBLE_DASH_INDEX -ne -1 ]; then
+    for ((i=LAST_DOUBLE_DASH_INDEX+1; i<=${#@}; i++)); do
+        ARGS_AFTER_DOUBLE_DASH+=("${!i}")
+    done
+fi
 [ ${DE} ] && echo "[debug] \$ARGS_AFTER_DOUBLE_DASH=${ARGS_AFTER_DOUBLE_DASH[@]}"
 
 INTENDED_CMD=(${ARGS_AFTER_DOUBLE_DASH[@]})
