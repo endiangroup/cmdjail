@@ -50,7 +50,7 @@ Describe 'cmdjail.sh'
     }
     When run cmdjail
     The status should equal 2
-    The contents of file "/tmp/cmdjail.log" should include "[warn] blocked blacklisted command: cat /tmp/cmdjail.log"
+    The contents of file "/tmp/cmdjail.log" should include "[warn]: blocked blacklisted command: cat /tmp/cmdjail.log"
   End
   Describe 'exits with cli flag subcommand exit code when its whitelisted'
     It 'exits with 0 when ls is whitelisted'
