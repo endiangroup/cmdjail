@@ -1,28 +1,78 @@
 Describe 'cmdjail.sh'
-  cmdjail() {
-    go run .
+  build() {
+    make -s bin/cmdjail
   }
   cleanup() { 
     rm -f bin/.cmd.jail
-    # rm -f /tmp/cmdjail.log
+    rm -f /tmp/cmdjail.log
   }
+  BeforeEach build
   AfterEach cleanup
-  It 'exits with code 126 when no .cmd.jail found'
+  It 'exits 1 when no .cmd.jail found'
+    cmdjail() {
+      bin/cmdjail -- cat
+    }
     When run cmdjail
     The status should equal 1
-    The line 1 of stderr should equal "[error] jail file not found: .cmd.jail"
+    The line 1 of stderr should include "[error] finding jail file:"
   End
-  # It 'exits with code 126 and logs when intent cmd includes .cmd.jail'
-  #   Path log-file=/tmp/cmdjail.log
-  #   cmdjail() { 
-  #     touch bin/.cmd.jail
-  #     CMDJAIL_LOG=/tmp/cmdjail.log bin/cmdjail.sh -- cat .cmd.jail; 
-  #   }
-  #   When run cmdjail
-  #   The status should equal 126
-  #   The line 1 of stderr should equal "[error]: attempting to manipulate .cmd.jail. Aborting."
-  #   The contents of file "/tmp/cmdjail.log" should include "[error]: attempting to manipulate .cmd.jail. Aborting."
-  # End
+  It 'exits 1 when empty .cmd.jail found'
+    cmdjail() {
+      touch bin/.cmd.jail
+      bin/cmdjail -- 'cat'
+    }
+    When run cmdjail
+    The status should equal 1
+    The line 1 of stderr should include "[error] empty jail file"
+  End
+  Describe 'exits 1 when intent cmd is empty'
+    It 'command options'
+      cmdjail() { 
+        bin/cmdjail --; 
+      }
+      When run cmdjail
+      The status should equal 1
+      The line 1 of stderr should equal "[error] no intent cmd provided"
+    End
+  End
+  It 'exits 77 when intent cmd isnt wrapped in single quotes as single argument'
+    cmdjail() { 
+      bin/cmdjail -- cat .cmd.jail; 
+    }
+    When run cmdjail
+    The status should equal 77
+    The line 1 of stderr should equal "[error] cmd must be wrapped in single quotes"
+  End
+  It 'exits 77 when intent cmd includes .cmd.jail'
+    cmdjail() { 
+      touch bin/.cmd.jail
+      bin/cmdjail -- 'cat .cmd.jail'; 
+    }
+    When run cmdjail
+    The status should equal 77
+    The line 1 of stderr should equal "[error] attempting to manipulate: .cmd.jail. Aborted"
+  End
+  It 'exits 77 when intent cmd includes binary name'
+    cmdjail() { 
+      touch bin/.cmd.jail
+      bin/cmdjail -- 'rm cmdjail'; 
+    }
+    When run cmdjail
+    The status should equal 77
+    The line 1 of stderr should equal "[error] attempting to manipulate: cmdjail. Aborted"
+  End
+  Describe 'logs when the log file is set'
+    It 'logs empty intent cmd invocation'
+      Path log-file=/tmp/cmdjail.log
+      cmdjail() { 
+        bin/cmdjail -l /tmp/cmdjail.log --; 
+      }
+      When run cmdjail
+      The status should equal 1
+      The line 1 of stderr should equal "[error] no intent cmd provided"
+      The contents of file "/tmp/cmdjail.log" should include "[error] no intent cmd provided"
+    End
+  End
   # It 'exits with code 126 and logs when .cmd.jail found and intent cmd is empty'
   #   Path log-file=/tmp/cmdjail.log
   #   cmdjail() { 

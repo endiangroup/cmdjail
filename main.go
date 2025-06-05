@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
+	"log/syslog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kelseyhightower/envconfig"
@@ -17,8 +20,20 @@ type envConfig struct {
 	Cmd          string
 	Log          string
 	EnvReference string `envconfig:"ENV_REFERENCE"`
-	JailFile     string `default:".cmd.jail"`
+	JailFile     string
 	Verbose      bool
+}
+
+func defaultEnvConfig() (envConfig, error) {
+	ex, err := os.Executable()
+	if err != nil {
+		return envConfig{}, err
+	}
+	exPath := filepath.Dir(ex)
+
+	return envConfig{
+		JailFile: filepath.Join(exPath, JailFilename),
+	}, nil
 }
 
 type Config struct {
@@ -29,7 +44,8 @@ type Config struct {
 }
 
 const (
-	EnvPrefix = "CMDJAIL"
+	EnvPrefix    = "CMDJAIL"
+	JailFilename = ".cmd.jail"
 )
 
 var (
@@ -38,6 +54,14 @@ var (
 	flagJailFile     string
 	flagVerbose      bool
 	flagVersion      bool
+)
+
+var (
+	ErrCmdNotWrappedInQuotes         = errors.New("cmd must be wrapped in single quotes")
+	ErrEmptyJailFile                 = errors.New("empty jail file")
+	ErrNoIntentCmd                   = errors.New("no intent cmd provided")
+	ErrJailFileManipulationAttempt   = fmt.Errorf("attempting to manipulate: %s. Aborted", JailFilename)
+	ErrJailBinaryManipulationAttempt = fmt.Errorf("attempting to manipulate: %s. Aborted", filepath.Base(os.Args[0]))
 )
 
 func splitArgs(args []string) ([]string, []string) {
@@ -55,11 +79,13 @@ func splitArgs(args []string) ([]string, []string) {
 	return args, nil
 }
 
-var ErrCmdNotWrappedInQuotes = errors.New("command not wrapped in single quotes to prevent subshell spawning (')")
-
 func parseEnvAndFlags() (Config, error) {
-	var conf envConfig
-	err := envconfig.Process(EnvPrefix, &conf)
+	conf, err := defaultEnvConfig()
+	if err != nil {
+		return Config{}, err
+	}
+
+	err = envconfig.Process(EnvPrefix, &conf)
 	if err != nil {
 		return Config{}, err
 	}
@@ -72,6 +98,14 @@ func parseEnvAndFlags() (Config, error) {
 	args, cmdOptions := splitArgs(os.Args)
 	pflag.CommandLine.Parse(args)
 
+	if flagLog != "" {
+		logFd, err := os.Create(flagLog)
+		if err != nil {
+			return Config{}, err
+		}
+		log.SetOutput(logFd)
+	}
+
 	if conf.Cmd != "" && conf.EnvReference != "" {
 		// TODO: log warning
 	}
@@ -82,11 +116,19 @@ func parseEnvAndFlags() (Config, error) {
 	}
 
 	if len(cmdOptions) > 0 {
-		if !strings.HasPrefix(cmdOptions[0], "'") && !strings.HasSuffix(cmdOptions[0], "'") {
+		if len(cmdOptions) > 1 {
 			return Config{}, ErrCmdNotWrappedInQuotes
 		}
 
-		cmd = strings.Trim(cmdOptions[0], "'")
+		cmd = cmdOptions[0]
+	}
+
+	if cmd == "" {
+		return Config{}, ErrNoIntentCmd
+	} else if strings.Contains(cmd, JailFilename) {
+		return Config{}, ErrJailFileManipulationAttempt
+	} else if strings.Contains(cmd, filepath.Base(os.Args[0])) {
+		return Config{}, ErrJailBinaryManipulationAttempt
 	}
 
 	return Config{
@@ -96,8 +138,6 @@ func parseEnvAndFlags() (Config, error) {
 		Verbose:  flagVerbose,
 	}, nil
 }
-
-var ErrEmptyJailFile = errors.New("empty jail file")
 
 type JailFile struct {
 	Allowed []string
@@ -126,22 +166,71 @@ func parseJailFile(f io.Reader) (JailFile, error) {
 	return jf, nil
 }
 
-func main() {
-	conf, err := parseEnvAndFlags()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "[error] %s\n", err.Error())
-		os.Exit(1)
+func errIsAny(target error, errs ...error) bool {
+	for _, err := range errs {
+		if errors.Is(target, err) {
+			return true
+		}
 	}
 
-	_, err = os.Open(conf.JailFile)
+	return false
+}
+
+func main() {
+	logWriter, err := syslog.New(syslog.LOG_SYSLOG, "cmdjail")
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			fmt.Fprintf(os.Stderr, "[error] jail file not found: %s\n", conf.JailFile)
-		} else {
-			fmt.Fprintf(os.Stderr, "[error] opening jail file: %s: %s\n", conf.JailFile, err.Error())
+		printErr(os.Stderr, "unable to set logfile: %s", err.Error())
+		os.Exit(1)
+	}
+	log.SetOutput(logWriter)
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+
+	conf, err := parseEnvAndFlags()
+	if err != nil {
+		printLogErr(os.Stderr, "%s", err.Error())
+		if errIsAny(err,
+			ErrCmdNotWrappedInQuotes,
+			ErrJailFileManipulationAttempt,
+			ErrJailBinaryManipulationAttempt) {
+			os.Exit(77)
 		}
 		os.Exit(1)
 	}
 
-	// jf, err := parseJailFile()
+	jailFileFd, err := os.Open(conf.JailFile)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			printLogErr(os.Stderr, "finding jail file: %s", conf.JailFile)
+		} else {
+			printLogErr(os.Stderr, "opening jail file: %s: %s", conf.JailFile, err.Error())
+		}
+		os.Exit(1)
+	}
+
+	_, err = parseJailFile(jailFileFd)
+	if err != nil {
+		if errors.Is(err, ErrEmptyJailFile) {
+			printLogErr(os.Stderr, "empty jail file: %s", conf.JailFile)
+		} else {
+			printLogErr(os.Stderr, "parsing jail file: %s: %s", conf.JailFile, err.Error())
+		}
+		os.Exit(1)
+	}
+}
+
+func printLog(printTo io.Writer, msg string, args ...any) {
+	fmt.Fprintf(printTo, msg, args...)
+	log.Printf(msg, args...)
+}
+
+func printErr(printTo io.Writer, msg string, args ...any) {
+	fmt.Fprintf(printTo, "[error] "+msg, args...)
+}
+
+func logErr(msg string, args ...any) {
+	log.Printf(msg, args...)
+}
+
+func printLogErr(printTo io.Writer, msg string, args ...any) {
+	printLog(printTo, "[error] "+msg, args...)
 }

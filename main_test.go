@@ -45,11 +45,13 @@ func TestParseEnvAndFlags(t *testing.T) {
 		assert.Equal(t, cmd, c.Cmd)
 	})
 
-	t.Run("Returns error when command set after -- isn't single quote wrapper", func(t *testing.T) {
+	t.Run("Returns error when command set after -- isn't a single argument", func(t *testing.T) {
 		tests := [][]string{
-			{"--", "ls"},
-			{"-v", "--", "ls"},
-			{"-v", "--", "ls -alh"},
+			// Note: if you wrap an argument in single quotes it will appear
+			// as a single item in the args array
+			{"--", "ls", "-alh"},
+			{"-v", "--", "ls", "-alh"},
+			{"-v", "--", "ls", "-alh"},
 		}
 
 		for _, test := range tests {
@@ -68,9 +70,11 @@ func TestParseEnvAndFlags(t *testing.T) {
 			inArgs      []string
 			expectedCmd string
 		}{
-			{inArgs: []string{"--", "'ls'"}, expectedCmd: "ls"},
-			{inArgs: []string{"-v", "--", "'ls'"}, expectedCmd: "ls"},
-			{inArgs: []string{"-v", "--", "'ls -alh'"}, expectedCmd: "ls -alh"},
+			{inArgs: []string{"--", "ls"}, expectedCmd: "ls"},
+			{inArgs: []string{"-v", "--", "ls"}, expectedCmd: "ls"},
+			// Note: if you wrap an argument in single quotes it will appear
+			// as a single item in the args array
+			{inArgs: []string{"-v", "--", "ls -alh"}, expectedCmd: "ls -alh"},
 		}
 
 		for _, test := range tests {
