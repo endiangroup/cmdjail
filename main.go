@@ -57,11 +57,16 @@ var (
 )
 
 var (
-	ErrCmdNotWrappedInQuotes         = errors.New("cmd must be wrapped in single quotes")
-	ErrEmptyJailFile                 = errors.New("empty jail file")
-	ErrNoIntentCmd                   = errors.New("no intent cmd provided")
-	ErrJailFileManipulationAttempt   = fmt.Errorf("attempting to manipulate: %s. Aborted", JailFilename)
+	// TODO: promote to type and capture cmd to log
+	ErrCmdNotWrappedInQuotes = errors.New("cmd must be wrapped in single quotes")
+	ErrEmptyJailFile         = errors.New("empty jail file")
+	ErrNoIntentCmd           = errors.New("no intent cmd provided")
+	// TODO: promote to type and capture cmd to log
+	ErrJailFileManipulationAttempt = fmt.Errorf("attempting to manipulate: %s. Aborted", JailFilename)
+	// TODO: promote to type and capture cmd to log
 	ErrJailBinaryManipulationAttempt = fmt.Errorf("attempting to manipulate: %s. Aborted", filepath.Base(os.Args[0]))
+	// TODO: promote to type and capture cmd to log
+	ErrJailLogManipulationAttempt = errors.New("attempting to manipulate cmdjail log. Aborted")
 )
 
 func splitArgs(args []string) ([]string, []string) {
@@ -91,7 +96,7 @@ func parseEnvAndFlags() (Config, error) {
 	}
 
 	pflag.BoolVarP(&flagVerbose, "verbose", "v", conf.Verbose, "enable verbose mode")
-	pflag.StringVarP(&flagLog, "log-file", "l", conf.Log, "log file location e.g. /var/log/cmdjail.log. If unset logging is disabled.")
+	pflag.StringVarP(&flagLog, "log-file", "l", conf.Log, "log file location e.g. /var/log/cmdjail.log. If unset defaults to syslog.")
 	pflag.StringVarP(&flagEnvReference, "env-reference", "r", conf.EnvReference, "name of an environment variable that holds the cmd to execute e.g. SSH_ORIGINAL_COMMAND")
 	pflag.StringVarP(&flagJailFile, "jail-file", "j", conf.JailFile, "jail file location. By default it searches for a .cmd.jail file")
 
@@ -123,12 +128,15 @@ func parseEnvAndFlags() (Config, error) {
 		cmd = cmdOptions[0]
 	}
 
+	// TODO: These are all very simplistic checks, likely need to make them more sophisticated
 	if cmd == "" {
 		return Config{}, ErrNoIntentCmd
 	} else if strings.Contains(cmd, JailFilename) {
 		return Config{}, ErrJailFileManipulationAttempt
 	} else if strings.Contains(cmd, filepath.Base(os.Args[0])) {
 		return Config{}, ErrJailBinaryManipulationAttempt
+	} else if flagLog != "" && strings.Contains(cmd, flagLog) {
+		return Config{}, ErrJailLogManipulationAttempt
 	}
 
 	return Config{
@@ -191,7 +199,8 @@ func main() {
 		if errIsAny(err,
 			ErrCmdNotWrappedInQuotes,
 			ErrJailFileManipulationAttempt,
-			ErrJailBinaryManipulationAttempt) {
+			ErrJailBinaryManipulationAttempt,
+			ErrJailLogManipulationAttempt) {
 			os.Exit(77)
 		}
 		os.Exit(1)

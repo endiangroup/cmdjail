@@ -4,6 +4,7 @@ Describe 'cmdjail.sh'
   }
   cleanup() { 
     rm -f bin/.cmd.jail
+    rm -f .some.log
     rm -f /tmp/cmdjail.log
   }
   BeforeEach build
@@ -29,6 +30,24 @@ Describe 'cmdjail.sh'
     It 'command options'
       cmdjail() { 
         bin/cmdjail -l /tmp/cmdjail.log --; 
+      }
+      When run cmdjail
+      The status should equal 1
+      The line 1 of stderr should equal "[error] no intent cmd provided"
+      The contents of file "/tmp/cmdjail.log" should include "[error] no intent cmd provided"
+    End
+    It 'env var'
+      cmdjail() { 
+        CMDJAIL_CMD="" bin/cmdjail -l /tmp/cmdjail.log;
+      }
+      When run cmdjail
+      The status should equal 1
+      The line 1 of stderr should equal "[error] no intent cmd provided"
+      The contents of file "/tmp/cmdjail.log" should include "[error] no intent cmd provided"
+    End
+    It 'env var reference'
+      cmdjail() { 
+        CMD="" CMDJAIL_ENV_REFERENCE="CMD" bin/cmdjail -l /tmp/cmdjail.log;
       }
       When run cmdjail
       The status should equal 1
@@ -65,27 +84,16 @@ Describe 'cmdjail.sh'
     The line 1 of stderr should equal "[error] attempting to manipulate: cmdjail. Aborted"
     The contents of file "/tmp/cmdjail.log" should include "[error] attempting to manipulate: cmdjail. Aborted"
   End
-  # It 'exits with code 126 and logs when intent cmd includes cmdjail.sh'
-  #   Path log-file=/tmp/cmdjail.log
-  #   cmdjail() { 
-  #     touch bin/.cmd.jail
-  #     CMDJAIL_LOG=/tmp/cmdjail.log bin/cmdjail.sh -- cat cmdjail.sh; 
-  #   }
-  #   When run cmdjail
-  #   The status should equal 126
-  #   The line 1 of stderr should equal "[error]: attempting to manipulate cmdjail.sh. Aborting."
-  #   The contents of file "/tmp/cmdjail.log" should include "[error]: attempting to manipulate cmdjail.sh. Aborting."
-  # End
-  # It 'logs an attempt to run a blacklisted command'
-  #   Path log-file=/tmp/cmdjail.log
-  #   cmdjail() { 
-  #     touch bin/.cmd.jail
-  #     CMDJAIL_LOG=/tmp/cmdjail.log bin/cmdjail.sh -- cat /tmp/cmdjail.log; 
-  #   }
-  #   When run cmdjail
-  #   The status should equal 2
-  #   The contents of file "/tmp/cmdjail.log" should include "[warn]: blocked blacklisted command: cat /tmp/cmdjail.log"
-  # End
+  It 'exits 77 when intent cmd includes log file'
+    cmdjail() { 
+      touch bin/.cmd.jail
+      bin/cmdjail -l .some.log -- 'rm .some.log'; 
+    }
+    When run cmdjail
+    The status should equal 77
+    The line 1 of stderr should equal "[error] attempting to manipulate cmdjail log. Aborted"
+    The contents of file ".some.log" should include "[error] attempting to manipulate cmdjail log. Aborted"
+  End
   # Describe 'exits with cli flag subcommand exit code when its whitelisted'
   #   It 'exits with 0 when ls is whitelisted'
   #     cmdjail() { 
