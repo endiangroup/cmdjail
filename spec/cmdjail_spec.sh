@@ -1,6 +1,7 @@
 Describe 'cmdjail.sh'
   build() {
     make -s bin/cmdjail
+    rm -f bin/.cmd.jail
   }
   cleanup() { 
     rm -f bin/.cmd.jail
@@ -26,6 +27,7 @@ Describe 'cmdjail.sh'
     The status should equal 1
     The line 1 of stderr should include "[error] empty jail file"
   End
+
   Describe 'exits 1 when intent cmd is empty'
     It 'command options'
       cmdjail() { 
@@ -55,6 +57,7 @@ Describe 'cmdjail.sh'
       The contents of file "/tmp/cmdjail.log" should include "[error] no intent cmd provided"
     End
   End
+  
   It 'exits 77 when intent cmd isnt wrapped in single quotes as single argument'
     cmdjail() { 
       bin/cmdjail -l /tmp/cmdjail.log -- cat .cmd.jail; 
@@ -94,16 +97,41 @@ Describe 'cmdjail.sh'
     The line 1 of stderr should equal "[error] attempting to manipulate cmdjail log. Aborted"
     The contents of file ".some.log" should include "[error] attempting to manipulate cmdjail log. Aborted"
   End
+
+  Describe 'whitelist only'
+    It 'exits 77 and logs an attempt to run a non-whitelisted intent cmd'
+      cmdjail() { 
+        echo "+ 'ls" > bin/.cmd.jail
+        bin/cmdjail -l /tmp/cmdjail.log -- 'cat /tmp/some.file'; 
+      }
+      When run cmdjail
+      The status should equal 77
+      The contents of file "/tmp/cmdjail.log" should include "[warn] implicitly blocked intent cmd: cat /tmp/some.file"
+    End
+    It 'exits with 0 when ls is whitelisted'
+      cmdjail() { 
+        echo "+ 'ls -al" > bin/.cmd.jail
+        bin/cmdjail -- 'ls -al'; 
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should include "total"
+    End
+  End
+
+  Describe 'balcklist only'
+    It 'exits 77 and logs an attempt to run a blacklisted intent cmd'
+      cmdjail() { 
+        echo "- 'cat /tmp/some.file" > bin/.cmd.jail
+        bin/cmdjail -l /tmp/cmdjail.log -- 'cat /tmp/some.file'; 
+      }
+      When run cmdjail
+      The status should equal 77
+      The contents of file "/tmp/cmdjail.log" should include "[warn] blocked blacklisted intent cmd: cat /tmp/some.file"
+    End
+  End
+
   # Describe 'exits with cli flag subcommand exit code when its whitelisted'
-  #   It 'exits with 0 when ls is whitelisted'
-  #     cmdjail() { 
-  #       echo "ls" > bin/.cmd.jail
-  #       bin/cmdjail.sh -- ls -al; 
-  #     }
-  #     When run cmdjail
-  #     The status should equal 0
-  #     The stdout should include "total"
-  #   End
   #   It 'exits with 1 when cat is whitelisted with invalid target'
   #     cmdjail() { 
   #       echo "cat" > bin/.cmd.jail
