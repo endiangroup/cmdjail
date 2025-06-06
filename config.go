@@ -38,7 +38,7 @@ var (
 )
 
 type envVars struct {
-	Cmd          string
+	IntentCmd    string `envconfig:"CMD"`
 	Log          string
 	EnvReference string `envconfig:"ENV_REFERENCE"`
 	JailFile     string
@@ -104,11 +104,11 @@ func parseEnvAndFlags() (Config, error) {
 		log.SetOutput(logFd)
 	}
 
-	if conf.Cmd != "" && conf.EnvReference != "" {
-		// TODO: log warning
+	if conf.IntentCmd != "" && conf.EnvReference != "" {
+		printLogWarn(os.Stderr, "both %s and %s environment variables are set", EnvPrefix+"_CMD")
 	}
 
-	cmd := conf.Cmd
+	cmd := conf.IntentCmd
 	if cmd == "" && conf.EnvReference != "" {
 		cmd = os.Getenv(conf.EnvReference)
 	}
