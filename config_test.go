@@ -24,7 +24,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)
 
-		assert.Equal(t, cmd, c.Cmd)
+		assert.Equal(t, cmd, c.IntentCmd)
 		assert.Equal(t, log, c.Log)
 		assert.Equal(t, jailfile, c.JailFile)
 		assert.Equal(t, true, c.Verbose)
@@ -41,7 +41,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)
 
-		assert.Equal(t, cmd, c.Cmd)
+		assert.Equal(t, cmd, c.IntentCmd)
 	})
 
 	t.Run("Returns error when command set after -- isn't a single argument", func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 				c, err := parseEnvAndFlags()
 				assert.NoError(t, err)
 
-				assert.Equal(t, test.expectedCmd, c.Cmd)
+				assert.Equal(t, test.expectedCmd, c.IntentCmd)
 			})
 		}
 	})

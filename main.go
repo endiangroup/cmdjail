@@ -2,7 +2,9 @@ package main
 
 import (
 	"errors"
+	"io"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 )
@@ -10,6 +12,45 @@ import (
 func main() {
 	setLoggerToSyslog()
 
+	conf := getConfig()
+	jailFile := getJailFile(conf)
+
+	// TODO: If only blacklist, implicity run when no match
+	for _, deny := range jailFile.Deny {
+		match, err := deny.Matches(conf.IntentCmd)
+		if err != nil {
+			logErr("running matcher: %s", err.Error())
+			os.Exit(1)
+		}
+		if match {
+			logWarn("blocked blacklisted intent cmd: %s", conf.IntentCmd)
+			os.Exit(77)
+		}
+	}
+
+	// If there are no whitelist entries assume blacklist behaviour,
+	// any intent cmd that doesn't match an explicit deny matcher is
+	// permitted.
+	if len(jailFile.Allow) == 0 {
+		os.Exit(runCmd(conf.IntentCmd))
+	}
+
+	for _, allow := range jailFile.Allow {
+		match, err := allow.Matches(conf.IntentCmd)
+		if err != nil {
+			logErr("running matcher: %s", err.Error())
+			os.Exit(1)
+		}
+		if match {
+			os.Exit(runCmd(conf.IntentCmd))
+		}
+	}
+
+	logWarn("implicitly blocked intent cmd: %s", conf.IntentCmd)
+	os.Exit(77)
+}
+
+func getConfig() Config {
 	conf, err := parseEnvAndFlags()
 	if err != nil {
 		printLogErr(os.Stderr, "%s", err.Error())
@@ -22,18 +63,28 @@ func main() {
 		}
 		os.Exit(1)
 	}
+	return conf
+}
 
-	jailFileFd, err := os.Open(conf.JailFile)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			printLogErr(os.Stderr, "finding jail file: %s", conf.JailFile)
-		} else {
-			printLogErr(os.Stderr, "opening jail file: %s: %s", conf.JailFile, err.Error())
+func getJailFile(conf Config) JailFile {
+	var jailFileReader io.Reader
+	var err error
+
+	if isStdinSet() {
+		jailFileReader = os.Stdin
+	} else {
+		jailFileReader, err = os.Open(conf.JailFile)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				printLogErr(os.Stderr, "finding jail file: %s", conf.JailFile)
+			} else {
+				printLogErr(os.Stderr, "opening jail file: %s: %s", conf.JailFile, err.Error())
+			}
+			os.Exit(1)
 		}
-		os.Exit(1)
 	}
 
-	jailFile, err := parseJailFile(conf, jailFileFd)
+	jailFile, err := parseJailFile(conf, jailFileReader)
 	if err != nil {
 		if errors.Is(err, ErrEmptyJailFile) {
 			printLogErr(os.Stderr, "empty jail file: %s", conf.JailFile)
@@ -43,31 +94,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: If only blacklist, implicity run when no match
-	for _, deny := range jailFile.Deny {
-		match, err := deny.Matches(conf.Cmd)
-		if err != nil {
-			logErr("running matcher: %s", err.Error())
-			os.Exit(1)
-		}
-		if match {
-			logWarn("blocked blacklisted intent cmd: %s", conf.Cmd)
-			os.Exit(77)
-		}
-	}
-	for _, allow := range jailFile.Allow {
-		match, err := allow.Matches(conf.Cmd)
-		if err != nil {
-			logErr("running matcher: %s", err.Error())
-			os.Exit(1)
-		}
-		if match {
-			os.Exit(runCmd(conf.Cmd))
-		}
+	return jailFile
+}
+
+func isStdinSet() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	logWarn("implicitly blocked intent cmd: %s", conf.Cmd)
-	os.Exit(77)
+	var hasStdin bool
+	if fi.Mode()&os.ModeNamedPipe != 0 {
+		hasStdin = true
+	}
+	return hasStdin
 }
 
 func runCmd(c string) int {

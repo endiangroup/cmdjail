@@ -58,10 +58,10 @@ func defaultEnvConfig() (envConfig, error) {
 }
 
 type Config struct {
-	Cmd      string
-	Log      string
-	JailFile string
-	Verbose  bool
+	IntentCmd string
+	Log       string
+	JailFile  string
+	Verbose   bool
 }
 
 var NoConfig = Config{}
@@ -95,7 +95,7 @@ func parseEnvAndFlags() (Config, error) {
 	pflag.BoolVarP(&flagVerbose, "verbose", "v", conf.Verbose, "enable verbose mode")
 	pflag.StringVarP(&flagLog, "log-file", "l", conf.Log, "log file location e.g. /var/log/cmdjail.log. If unset defaults to syslog.")
 	pflag.StringVarP(&flagEnvReference, "env-reference", "r", conf.EnvReference, "name of an environment variable that holds the cmd to execute e.g. SSH_ORIGINAL_COMMAND")
-	pflag.StringVarP(&flagJailFile, "jail-file", "j", conf.JailFile, "jail file location. By default it searches for a .cmd.jail file")
+	pflag.StringVarP(&flagJailFile, "jail-file", "j", conf.JailFile, "jail file location, if not set uses stdin. By default it searches for a .cmd.jail file")
 
 	args, cmdOptions := splitArgs(os.Args)
 	pflag.CommandLine.Parse(args)
@@ -137,9 +137,9 @@ func parseEnvAndFlags() (Config, error) {
 	}
 
 	return Config{
-		Cmd:      cmd,
-		Log:      flagLog,
-		JailFile: flagJailFile,
-		Verbose:  flagVerbose,
+		IntentCmd: cmd,
+		Log:       flagLog,
+		JailFile:  flagJailFile,
+		Verbose:   flagVerbose,
 	}, nil
 }
