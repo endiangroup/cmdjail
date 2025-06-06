@@ -30,11 +30,18 @@ help:
 	| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[32m %-43s\033[0m %s\n", $$1, $$2}' \
 	| sed -e 's/\[32m #-- /[33m/'
 
-bin:
-	mkdir bin
-
 bin/cmdjail: bin *.go
+	@mkdir -p bin
 	@$(GO) build -o bin/cmdjail .
+
+#-- Building
+
+.PHONY: build
+build: build/cmdjail-linux-arm64 ## build binaries across platform
+
+build/cmdjail-linux-arm64: *.go
+	@mkdir -p build
+	@GOOS=linux GOARCH=arm64 CGO_ENABLED=0 $(GO) build -o build/cmdjail-linux-arm64 .
 
 #-- Testing
 .PHONY: test test-units test-features
@@ -49,4 +56,5 @@ test-features: bin/cmdjail
 .PHONY: clean
 clean:
 	rm -rf bin
+	rm -rf build
 
