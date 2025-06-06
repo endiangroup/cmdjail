@@ -119,8 +119,8 @@ This configuration uses whitelist mode. Only commands that are explicitly allowe
 
 ```diff
 # Allow ls -l and whoami exactly.
-+ 'ls -l'
-+ 'whoami'
++ 'ls -l
++ 'whoami
 ```
 
 **Usage:**
@@ -136,7 +136,7 @@ $ cmdjail -- 'rm -rf /'
 [error] implicitly blocked intent cmd: rm -rf /
 ```
 
-#### Example 2: Blacklist with a Whitelist
+#### Example 2: Black and whitelist
 
 **Goal:** Allow a user to run any `git` command except for `git push`.
 
@@ -146,10 +146,10 @@ This configuration uses a deny rule to block a specific command and a broad allo
 
 ```diff
 # Explicitly deny 'git push'
-- 'git push'
+- 'git push
 
 # Allow any other command that starts with 'git '
-+ r'^git '
++ r'^git
 ```
 
 **Usage:**
@@ -163,4 +163,88 @@ Your branch is up to date with 'origin/main'.
 # This command will be blocked by the deny rule
 $ cmdjail -- 'git push'
 [warn] blocked blacklisted intent cmd: git push
+```
+
+#### Example 3: Whitelisting Safe Subcommands with grep
+
+**Goal:** Allow a user to view running docker containers and check logs, but prevent them from running, stopping, or building new containers.
+
+This uses a grep command matcher to check that the intent command starts with either docker ps or docker logs. The -qE flags make grep silent (-q) and
+enable extended regular expressions (-E). grep exits with code 0 (success) only if a match is found.
+
+`.cmd.jail`:
+
+```diff
+# Allow only 'docker ps' and 'docker logs' commands.
+# The regex is anchored (^) to ensure the command starts with 'docker'.
++ grep -qE '^docker (ps|logs)'
+```
+
+**Usage:**
+
+```bash
+# This command will be allowed by the grep matcher
+$ cmdjail -- 'docker ps -a'
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+...
+
+# This command will be blocked because it doesn't match the regex
+$ cmdjail -- 'docker run -it ubuntu'
+[error] implicitly blocked intent cmd: docker run -it ubuntu
+```
+
+#### Example 4: Validating Command Arguments with awk
+
+**Goal:** Allow a user to use echo to print messages, but only if the message consists of simple, alphanumeric words. This prevents arguments that contain
+shell metacharacters like ;, |, or >.
+
+This awk one-liner checks two conditions: 1) The command must start with echo. 2) Every subsequent argument must only contain letters and numbers. If
+both conditions are met, it exits with 0 (success); otherwise, it exits with 1 (failure).
+
+.cmd.jail:
+
+```diff
+# Allow 'echo' only with safe, alphanumeric arguments.
++ awk '{ if ($1 != "echo") exit 1; for (i=2; i<=NF; i++) { if ($i !~ /^[a-zA-Z0-9]+$/) exit 1 }; exit 0 }'
+```
+
+**Usage:**
+
+```bash
+# This command is allowed because all arguments are alphanumeric
+$ cmdjail -- 'echo hello world'
+hello world
+
+# This command is blocked by the awk script because of the semicolon
+$ cmdjail -- 'echo hello; ls'
+[error] implicitly blocked intent cmd: echo hello; ls
+```
+
+#### Example 5: Allowing cat Safely by Denying Sensitive Paths
+
+**Goal:** Allow a user to read files using cat, but explicitly block them from accessing any file within the /etc/ directory.
+
+cmdjail processes deny rules first. The first rule blocks any cat command where the path contains /etc/. If that rule doesn't match, cmdjail proceeds to
+the allow rule, which permits any other cat command.
+
+`.cmd.jail`:
+
+```diff
+# 1. Deny any attempt to cat a file in /etc/
+- grep -qE '^cat .*/etc/'
+
+# 2. Allow any other 'cat' command.
++ grep -qE '^cat '
+```
+
+**Usage:**
+
+```bash
+# This command is allowed because it passes the deny rule and matches the allow rule
+$ cmdjail -- 'cat /home/user/notes.txt'
+Some notes...
+
+# This command is blocked by the first (deny) rule
+$ cmdjail -- 'cat /etc/passwd'
+[warn] blocked blacklisted intent cmd: cat /etc/passwd
 ```
