@@ -41,6 +41,10 @@ func printLogErr(printTo io.Writer, msg string, args ...any) {
 	printLog(printTo, "[error] "+msg, args...)
 }
 
+func printLogWarn(printTo io.Writer, msg string, args ...any) {
+	printLog(printTo, "[warn] "+msg, args...)
+}
+
 func printLogDebug(printTo io.Writer, msg string, args ...any) {
 	if debug {
 		printLog(printTo, "[debug] "+msg, args...)

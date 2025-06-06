@@ -15,7 +15,7 @@ func main() {
 	conf := getConfig()
 	jailFile := getJailFile(conf)
 
-	// TODO: If only blacklist, implicity run when no match
+	// Check blacklisted commands first
 	for _, deny := range jailFile.Deny {
 		match, err := deny.Matches(conf.IntentCmd)
 		if err != nil {
@@ -35,6 +35,7 @@ func main() {
 		os.Exit(runCmd(conf.IntentCmd))
 	}
 
+	// Check whitelisted commands
 	for _, allow := range jailFile.Allow {
 		match, err := allow.Matches(conf.IntentCmd)
 		if err != nil {
