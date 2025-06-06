@@ -45,12 +45,17 @@ var ErrEmptyJailFile = errors.New("empty jail file")
 
 type Matcher interface {
 	Matches(string) (bool, error)
+	Raw() string
 }
 
 type matcher struct {
 	raw        string
 	lineNumber int
 	jailFile   string
+}
+
+func (m matcher) Raw() string {
+	return m.raw
 }
 
 func newMatcher(raw, jailFile string, lineNumber int) matcher {
@@ -76,6 +81,7 @@ func NewLiteralMatcher(m matcher, s string) LiteralMatcher {
 }
 
 func (m LiteralMatcher) Matches(intentCmd string) (bool, error) {
+	printLogDebug(os.Stdout, "LiteralMatcher: comparing intent '%s' with rule string '%s'\n", intentCmd, m.str)
 	if m.str == intentCmd {
 		return true, nil
 	}
@@ -103,6 +109,7 @@ func NewRegexMatcher(m matcher, re string) (RegexMatcher, error) {
 }
 
 func (r RegexMatcher) Matches(intentCmd string) (bool, error) {
+	printLogDebug(os.Stdout, "RegexMatcher: matching intent '%s' against pattern '%s'\n", intentCmd, r.re.String())
 	return r.re.MatchString(intentCmd), nil
 }
 
@@ -119,6 +126,7 @@ func NewCmdMatcher(m matcher, c string) CmdMatcher {
 }
 
 func (c CmdMatcher) Matches(intentCmd string) (bool, error) {
+	printLogDebug(os.Stdout, "CmdMatcher: executing '%s' with stdin: %s\n", c.cmd, intentCmd)
 	cmd := exec.Command("bash", "-c", c.cmd)
 	w, err := cmd.StdinPipe()
 	if err != nil {

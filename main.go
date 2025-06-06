@@ -13,10 +13,14 @@ func main() {
 	setLoggerToSyslog()
 
 	conf := getConfig()
+	printLogDebug(os.Stdout, "config loaded: %+v\n", conf)
 	jailFile := getJailFile(conf)
+	printLogDebug(os.Stdout, "jail file loaded: %d allow rules, %d deny rules\n", len(jailFile.Allow), len(jailFile.Deny))
+	printLogDebug(os.Stdout, "evaluating intent command: %s\n", conf.IntentCmd)
 
 	// Check blacklisted commands first
-	for _, deny := range jailFile.Deny {
+	for i, deny := range jailFile.Deny {
+		printLogDebug(os.Stdout, "checking deny rule #%d: %s\n", i+1, deny.Raw())
 		match, err := deny.Matches(conf.IntentCmd)
 		if err != nil {
 			logErr("running matcher: %s", err.Error())
@@ -36,13 +40,15 @@ func main() {
 	}
 
 	// Check whitelisted commands
-	for _, allow := range jailFile.Allow {
+	for i, allow := range jailFile.Allow {
+		printLogDebug(os.Stdout, "checking allow rule #%d: %s\n", i+1, allow.Raw())
 		match, err := allow.Matches(conf.IntentCmd)
 		if err != nil {
 			logErr("running matcher: %s", err.Error())
 			os.Exit(1)
 		}
 		if match {
+			printLogDebug(os.Stdout, "command explicitly allowed, executing\n")
 			os.Exit(runCmd(conf.IntentCmd))
 		}
 	}

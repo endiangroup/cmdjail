@@ -109,8 +109,13 @@ func parseEnvAndFlags() (Config, error) {
 	}
 
 	cmd := conf.IntentCmd
+	if cmd != "" {
+		printLogDebug(os.Stderr, "intent command loaded from $%s_CMD\n", EnvPrefix)
+	}
+
 	if cmd == "" && conf.EnvReference != "" {
 		cmd = os.Getenv(conf.EnvReference)
+		printLogDebug(os.Stderr, "intent command loaded from $%S_%s\n", EnvPrefix, conf.EnvReference)
 	}
 
 	if len(cmdOptions) > 0 {
@@ -119,6 +124,7 @@ func parseEnvAndFlags() (Config, error) {
 		}
 
 		cmd = cmdOptions[0]
+		printLogDebug(os.Stderr, "intent command loaded from arguments after --\n")
 	}
 
 	// TODO: These are all very simplistic checks, likely need to make them more sophisticated
