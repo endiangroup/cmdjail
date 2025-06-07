@@ -10,8 +10,6 @@ import (
 )
 
 func main() {
-	setLoggerToSyslog()
-
 	conf := getConfig()
 	printLogDebug(os.Stdout, "config loaded: %+v\n", conf)
 	jailFile := getJailFile(conf)

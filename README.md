@@ -20,11 +20,11 @@ This is a plain text file (default: `.cmd.jail`) that defines the filtering rule
 
 Matchers are how `cmdjail` determines if an intent command corresponds to a rule. There are three types of matchers:
 
-| Type        | Syntax              | Description                                                                                                                                                   |
-| :---------- | :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Literal** | `+ 'command string` | Performs an exact, case-sensitive string comparison. This is the simplest and safest matcher.                                                                 |
-| **Regex**   | `+ r'^pattern$`     | Matches the intent command against a Go-compatible regular expression.                                                                                        |
-| **Command** | `- /path/to/script` | Executes an external script or binary. The intent command is piped to the script's standard input. The match is successful if the script exits with code `0`. |
+| Type        | Prefix | Syntax              | Description                                                                                                                                                   |
+| :---------- | :----- | :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Literal** | `'`    | `+ 'command string` | Performs an exact, case-sensitive string comparison. This is the simplest and safest matcher.                                                                 |
+| **Regex**   | `r'`   | `+ r'^pattern$`     | Matches the intent command against a [Go-compatible regular expression](https://pkg.go.dev/regexp/syntax).                                                    |
+| **Command** | ``     | `- /path/to/script` | Executes an external script or binary. The intent command is piped to the script's standard input. The match is successful if the script exits with code `0`. |
 
 > **Security Warning:** The **Command Matcher** is powerful but can introduce vulnerabilities if the script it calls is insecure. Ensure that any script used as a matcher is well-vetted and not writable by the user being jailed.
 
@@ -103,7 +103,7 @@ Flags
 | Flag                | Environment Variable  | Description                                                                                                   |
 | ------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | -j, --jail-file     | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. Can also be piped to stdin. |
-| -l, --log-file      | CMDJAIL_LOG           | Path to a log file. Defaults to syslog.                                                                       |
+| -l, --log-file      | CMDJAIL_LOG           | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                  |
 | -r, --env-reference | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                   |
 | -v, --verbose       | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                         |
 

@@ -10,14 +10,24 @@ import (
 
 var debug bool
 
-func setLoggerToSyslog() {
+func setLoggerToSyslog() error {
 	logWriter, err := syslog.New(syslog.LOG_SYSLOG, "cmdjail")
 	if err != nil {
-		printErr(os.Stderr, "unable to set logfile: %s", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("unable to set up syslog: %w", err)
 	}
 	log.SetOutput(logWriter)
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	return nil
+}
+
+func setLoggerToFile(path string) error {
+	logFd, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("unable to create log file %s: %w", path, err)
+	}
+	log.SetOutput(logFd)
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	return nil
 }
 
 func printLog(printTo io.Writer, msg string, args ...any) {
