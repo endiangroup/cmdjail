@@ -239,17 +239,33 @@ Describe 'cmdjail.sh'
       The contents of file "/tmp/cmdjail.log" should include "[warn] implicitly blocked intent cmd: ls -l"
     End
 
-    It 'exits when user types quit'
+    It 'doesnt exit when user runs quit if not allowed'
       cmdjail() {
         echo "+ 'echo hello shell" > bin/.cmd.jail
-        bin/cmdjail
+        bin/cmdjail -l /tmp/cmdjail.log
       }
       Data
       #|quit
       End
 
       When run cmdjail
-      The stdout should equal "cmdjail> "
+      The stdout should include "cmdjail> "
+      The contents of file "/tmp/cmdjail.log" should include "[warn] implicitly blocked intent cmd: quit"
+      The status should equal 0
+    End
+
+    It 'exits when the user runs exit and its allowed'
+      cmdjail() {
+        echo "+ 'exit" > bin/.cmd.jail
+        bin/cmdjail -l /tmp/cmdjail.log
+      }
+      Data
+      #|quit
+      End
+
+      When run cmdjail
+      The stdout should include "cmdjail> "
+      The contents of file "/tmp/cmdjail.log" should not include "[warn] implicitly blocked intent cmd: exit"
       The status should equal 0
     End
 
@@ -270,7 +286,8 @@ Describe 'cmdjail.sh'
       The stdout should include "second command"
       The stderr should include "[warn] cmdjail shell mode recording to: /tmp/test.jail"
       The contents of file "/tmp/test.jail" should eq "+ 'echo first command
-+ 'echo second command"
++ 'echo second command
++ 'exit"
     End
 
     It 'records failing commands in shell record mode'
@@ -287,7 +304,8 @@ Describe 'cmdjail.sh'
       The status should equal 0
       The stdout should include "cmdjail>"
       The stderr should include "cat: no-such-file: No such file or directory"
-      The contents of file "/tmp/test.jail" should eq "+ 'cat no-such-file"
+      The contents of file "/tmp/test.jail" should eq "+ 'cat no-such-file
++ 'exit"
     End
   End
 End

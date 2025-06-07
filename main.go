@@ -33,7 +33,8 @@ func main() {
 		os.Exit(recordIntentCmd(conf))
 	}
 
-	os.Exit(evaluateAndRun(conf.IntentCmd, getJailFile(conf)))
+	_, exitCode := evaluateAndRun(conf.IntentCmd, getJailFile(conf))
+	os.Exit(exitCode)
 }
 
 func recordIntentCmd(conf Config) int {
@@ -54,10 +55,6 @@ func runShell(conf Config, jailFile JailFile) int {
 	fmt.Print("cmdjail> ")
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-
-		if line == "exit" || line == "quit" {
-			return 0
-		}
 		if line == "" {
 			fmt.Print("cmdjail> ")
 			continue
@@ -75,9 +72,19 @@ func runShell(conf Config, jailFile JailFile) int {
 			} else {
 				printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, line)
 			}
-			runCmd(line)
+
+			if line == "exit" || line == "quit" {
+				return 0
+			} else {
+				runCmd(line)
+			}
+
 		} else {
-			evaluateAndRun(line, jailFile)
+			cmdWasAllowed, _ := evaluateAndRun(line, jailFile)
+
+			if cmdWasAllowed && (line == "exit" || line == "quit") {
+				return 0
+			}
 		}
 
 		fmt.Print("cmdjail> ")
@@ -87,11 +94,12 @@ func runShell(conf Config, jailFile JailFile) int {
 		printLogErr(os.Stderr, "reading from stdin: %v", err)
 		return 1
 	}
+
 	fmt.Println() // Print a newline on exit (e.g., Ctrl+D)
 	return 0
 }
 
-func evaluateAndRun(intentCmd string, jailFile JailFile) int {
+func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
 	printLogDebug(os.Stdout, "evaluating intent command: %s\n", intentCmd)
 
 	// Check blacklisted commands first
@@ -100,16 +108,16 @@ func evaluateAndRun(intentCmd string, jailFile JailFile) int {
 		match, err := deny.Matches(intentCmd)
 		if err != nil {
 			logErr("running matcher: %s", err.Error())
-			return 1
+			return false, 1
 		}
 		if match {
 			logWarn("blocked blacklisted intent cmd: %s", intentCmd)
-			return 77
+			return false, 77
 		}
 	}
 
 	if len(jailFile.Allow) == 0 {
-		return runCmd(intentCmd)
+		return true, runCmd(intentCmd)
 	}
 
 	// Check whitelisted commands
@@ -118,16 +126,16 @@ func evaluateAndRun(intentCmd string, jailFile JailFile) int {
 		match, err := allow.Matches(intentCmd)
 		if err != nil {
 			logErr("running matcher: %s", err.Error())
-			return 1
+			return false, 1
 		}
 		if match {
 			printLogDebug(os.Stdout, "command explicitly allowed, executing\n")
-			return runCmd(intentCmd)
+			return true, runCmd(intentCmd)
 		}
 	}
 
 	logWarn("implicitly blocked intent cmd: %s", intentCmd)
-	return 77
+	return false, 77
 }
 
 func getConfig() Config {
