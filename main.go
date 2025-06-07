@@ -16,22 +16,24 @@ func main() {
 	conf := getConfig()
 	printLogDebug(os.Stdout, "config loaded: %+v\n", conf)
 
-	if conf.RecordFile != "" {
-		if conf.Shell {
-			printLogWarn(os.Stderr, "cmdjail shell mode recording to: %s", conf.RecordFile)
-			os.Exit(runRecordShell(conf))
-		} else {
-			printLogWarn(os.Stderr, "cmdjail single-command record mode, recording to: %s", conf.RecordFile)
-			os.Exit(recordIntentCmd(conf))
-		}
-	}
-
-	jailFile := getJailFile(conf)
 	if conf.Shell {
+		var jailFile JailFile
+		if conf.RecordFile != "" {
+			printLogWarn(os.Stderr, "cmdjail shell mode recording to: %s", conf.RecordFile)
+			// No jail file needed for record mode
+		} else {
+			jailFile = getJailFile(conf)
+		}
 		os.Exit(runShell(conf, jailFile))
 	}
 
-	os.Exit(evaluateAndRun(conf.IntentCmd, jailFile))
+	// Single command mode
+	if conf.RecordFile != "" {
+		printLogWarn(os.Stderr, "cmdjail single-command record mode, recording to: %s", conf.RecordFile)
+		os.Exit(recordIntentCmd(conf))
+	}
+
+	os.Exit(evaluateAndRun(conf.IntentCmd, getJailFile(conf)))
 }
 
 func recordIntentCmd(conf Config) int {
@@ -45,47 +47,9 @@ func recordIntentCmd(conf Config) int {
 	return runCmd(conf.IntentCmd)
 }
 
-func runRecordShell(conf Config) int {
-	scanner := bufio.NewScanner(os.Stdin)
-
-	fmt.Print("cmdjail> ")
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		if line == "exit" || line == "quit" {
-			return 0
-		}
-		if line == "" {
-			fmt.Print("cmdjail> ")
-			continue
-		}
-
-		if err := checkCmdSafety(line, conf.Log); err != nil {
-			printLogErr(os.Stderr, "%s\n", err.Error())
-			fmt.Print("cmdjail> ")
-			continue
-		}
-
-		if err := appendRuleToFile(conf.RecordFile, line); err != nil {
-			printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
-		} else {
-			printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, line)
-		}
-		runCmd(line)
-
-		fmt.Print("cmdjail> ")
-	}
-
-	if err := scanner.Err(); err != nil {
-		printLogErr(os.Stderr, "reading from stdin: %v", err)
-		return 1
-	}
-	fmt.Println() // Print a newline on exit (e.g., Ctrl+D)
-	return 0
-}
-
 func runShell(conf Config, jailFile JailFile) int {
 	scanner := bufio.NewScanner(os.Stdin)
+	isRecordMode := conf.RecordFile != ""
 
 	fmt.Print("cmdjail> ")
 	for scanner.Scan() {
@@ -105,7 +69,17 @@ func runShell(conf Config, jailFile JailFile) int {
 			continue
 		}
 
-		evaluateAndRun(line, jailFile)
+		if isRecordMode {
+			if err := appendRuleToFile(conf.RecordFile, line); err != nil {
+				printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
+			} else {
+				printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, line)
+			}
+			runCmd(line)
+		} else {
+			evaluateAndRun(line, jailFile)
+		}
+
 		fmt.Print("cmdjail> ")
 	}
 
