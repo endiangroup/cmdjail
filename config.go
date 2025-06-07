@@ -30,7 +30,6 @@ var (
 var (
 	// TODO: promote to type and capture cmd to log
 	ErrCmdNotWrappedInQuotes = errors.New("cmd must be wrapped in single quotes")
-	ErrShellModeWithRecord   = errors.New("shell mode cannot be used with --record mode")
 	// TODO: promote to type and capture cmd to log
 	ErrJailFileManipulationAttempt = fmt.Errorf("attempting to manipulate: %s. Aborted", JailFilename)
 	// TODO: promote to type and capture cmd to log
@@ -155,10 +154,6 @@ func parseEnvAndFlags() (Config, error) {
 	shellMode := false
 	if cmd == "" {
 		shellMode = true
-	}
-
-	if shellMode && flagRecordFile != "" {
-		return NoConfig, ErrShellModeWithRecord
 	}
 
 	if cmd != "" {

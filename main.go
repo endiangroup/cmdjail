@@ -17,8 +17,13 @@ func main() {
 	printLogDebug(os.Stdout, "config loaded: %+v\n", conf)
 
 	if conf.RecordFile != "" {
-		printLogWarn(os.Stderr, "cmdjail running in record mode")
-		os.Exit(recordIntentCmd(conf))
+		if conf.Shell {
+			printLogWarn(os.Stderr, "cmdjail shell mode recording to: %s", conf.RecordFile)
+			os.Exit(runRecordShell(conf))
+		} else {
+			printLogWarn(os.Stderr, "cmdjail single-command record mode, recording to: %s", conf.RecordFile)
+			os.Exit(recordIntentCmd(conf))
+		}
 	}
 
 	jailFile := getJailFile(conf)
@@ -38,6 +43,45 @@ func recordIntentCmd(conf Config) int {
 	printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, conf.IntentCmd)
 
 	return runCmd(conf.IntentCmd)
+}
+
+func runRecordShell(conf Config) int {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	fmt.Print("cmdjail> ")
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if line == "exit" || line == "quit" {
+			return 0
+		}
+		if line == "" {
+			fmt.Print("cmdjail> ")
+			continue
+		}
+
+		if err := checkCmdSafety(line, conf.Log); err != nil {
+			printLogErr(os.Stderr, "%s\n", err.Error())
+			fmt.Print("cmdjail> ")
+			continue
+		}
+
+		if err := appendRuleToFile(conf.RecordFile, line); err != nil {
+			printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
+		} else {
+			printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, line)
+		}
+		runCmd(line)
+
+		fmt.Print("cmdjail> ")
+	}
+
+	if err := scanner.Err(); err != nil {
+		printLogErr(os.Stderr, "reading from stdin: %v", err)
+		return 1
+	}
+	fmt.Println() // Print a newline on exit (e.g., Ctrl+D)
+	return 0
 }
 
 func runShell(conf Config, jailFile JailFile) int {
@@ -120,8 +164,7 @@ func getConfig() Config {
 			ErrCmdNotWrappedInQuotes,
 			ErrJailFileManipulationAttempt,
 			ErrJailBinaryManipulationAttempt,
-			ErrJailLogManipulationAttempt,
-			ErrShellModeWithRecord) {
+			ErrJailLogManipulationAttempt) {
 			os.Exit(77)
 		}
 		os.Exit(1)
@@ -179,14 +222,18 @@ func runCmd(c string) int {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		logErr("running intent cmd: %s: %s", c, err.Error())
+		printLogErr(os.Stderr, "running intent cmd: %s: %s", c, err.Error())
 		return 1
 	}
 	if err := cmd.Wait(); err != nil {
-		logErr("running intent cmd: %s: %s", c, err.Error())
+		// Don't log error here as it's the command's exit status, not an application error.
+		// The command's stderr is already piped.
 		if exerr, ok := err.(*exec.ExitError); ok {
 			return exerr.ExitCode()
 		}
+		// For other errors (not ExitError), it's an application-level issue.
+		printLogErr(os.Stderr, "waiting for intent cmd: %s: %s", c, err.Error())
+		return 1
 	}
 
 	return 0

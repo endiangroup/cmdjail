@@ -193,20 +193,20 @@ Describe 'cmdjail.sh'
       When run cmdjail
       The status should equal 0
       The stdout should equal "hello record"
-      The stderr should include "[warn] cmdjail running in record mode"
+      The stderr should include "[warn] cmdjail single-command record mode, recording to: /tmp/test.jail" 
       The contents of file "/tmp/test.jail" should equal "+ 'echo \"hello record\""
     End
 
     It 'ignores existing jail rules'
       cmdjail() {
-        echo "- 'echo \"not blocked\"'" > bin/.cmd.jail
-        bin/cmdjail --record /tmp/test.jail -- 'echo "not blocked"'
+        echo "- 'echo \"blocked\"" > bin/.cmd.jail
+        bin/cmdjail --record /tmp/test.jail -- 'echo "blocked"'
       }
       When run cmdjail
       The status should equal 0
-      The stdout should equal "not blocked"
-      The stderr should include "[warn] cmdjail running in record mode"
-      The contents of file "/tmp/test.jail" should equal "+ 'echo \"not blocked\""
+      The stdout should equal "blocked"
+      The stderr should include "[warn] cmdjail single-command record mode, recording to: /tmp/test.jail" 
+      The contents of file "/tmp/test.jail" should equal "+ 'echo \"blocked\""
     End
 
     It 'records failing commands and preserves their exit code'
@@ -215,7 +215,7 @@ Describe 'cmdjail.sh'
       }
       When run cmdjail
       The status should equal 1
-      The stderr should include "[warn] cmdjail running in record mode"
+      The stderr should include "[warn] cmdjail single-command record mode, recording to: /tmp/test.jail" 
       The stderr should include "cat: no-such-file: No such file or directory"
       The contents of file "/tmp/test.jail" should equal "+ 'cat no-such-file"
     End
@@ -249,8 +249,45 @@ Describe 'cmdjail.sh'
       End
 
       When run cmdjail
+      The stdout should equal "cmdjail> "
+      The status should equal 0
+    End
+
+    It 'records all commands when --record is used in shell mode'
+      cmdjail() {
+        # No .cmd.jail file is needed in record mode
+        bin/cmdjail --record /tmp/test.jail
+      }
+      Data
+      #|echo first command
+      #|echo second command
+      #|exit
+      End
+
+      When run cmdjail
+      The status should equal 0
+      The stdout should include "first command"
+      The stdout should include "second command"
+      The stderr should include "[warn] cmdjail shell mode recording to: /tmp/test.jail"
+      The contents of file "/tmp/test.jail" should eq "+ 'echo first command
++ 'echo second command"
+    End
+
+    It 'records failing commands in shell record mode'
+      cmdjail() {
+        # No .cmd.jail file is needed in record mode
+        bin/cmdjail --record /tmp/test.jail
+      }
+      Data
+      #|cat no-such-file
+      #|exit
+      End
+
+      When run cmdjail
       The status should equal 0
       The stdout should include "cmdjail>"
+      The stderr should include "cat: no-such-file: No such file or directory"
+      The contents of file "/tmp/test.jail" should eq "+ 'cat no-such-file"
     End
   End
 End

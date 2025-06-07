@@ -100,13 +100,13 @@ cmdjail [flags] -- 'command to run with arguments'
 
 Flags
 
-| Flag            | Shorthand | Environment Variable  | Description                                                                                                   |
-| --------------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| --jail-file     | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. Can also be piped to stdin. |
-| --log-file      | -l        | CMDJAIL_LOG           | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                  |
-| --env-reference | -e        | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                   |
-| --record        | -r        | CMDJAIL_RECORDFILE    | Transparently run the intent cmd and append it to the specified file as a literal allow rule.                 |
-| --verbose       | -v        | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                         |
+| Flag            | Shorthand | Environment Variable  | Description                                                                                                                                                                           |
+| --------------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| --jail-file     | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. Can also be piped to stdin.                                                                         |
+| --log-file      | -l        | CMDJAIL_LOG           | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                                                                                          |
+| --env-reference | -e        | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                                                                                           |
+| --record        | -r        | CMDJAIL_RECORDFILE    | Enables recording mode. When this flag is used, no jail file is loaded and no rules are checked. All commands are executed and appended to the specified file as literal allow rules. |
+| --verbose       | -v        | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                                                                                                 |
 
 ### Jail File Examples (.cmd.jail)
 
@@ -297,3 +297,20 @@ cmdjail> exit
 ```
 
 To exit the shell, type `exit` or `quit`, or press `Ctrl+D`.
+
+You can also combine shell mode with the `--record` flag to automatically append all commands to a file, which is a powerful way to build a jail file from an interactive session.
+
+```bash
+# Start an interactive shell that records all commands to my.jail
+$ cmdjail --record ./my.jail
+[warn] cmdjail shell mode recording to: ./my.jail
+cmdjail> whoami
+user
+cmdjail> date
+Fri Jun 21 11:30:00 UTC 2024
+cmdjail> exit
+
+$ cat ./my.jail
++ 'whoami
++ 'date
+```
