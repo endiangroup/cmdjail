@@ -7,6 +7,7 @@ Describe 'cmdjail.sh'
     rm -f bin/.cmd.jail
     rm -f .some.log
     rm -f /tmp/cmdjail.log
+    rm -f /tmp/test.jail
   }
   BeforeEach build
   AfterEach cleanup
@@ -194,6 +195,42 @@ Describe 'cmdjail.sh'
       When run cmdjail
       The status should equal 0
       The stdout should include "total"
+    End
+  End
+
+  Describe 'record mode'
+    It 'runs the command and records it to a file'
+      cmdjail() {
+        bin/cmdjail --record /tmp/test.jail -- 'echo "hello record"'
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should equal "hello record"
+      The stderr should include "[warn] cmdjail running in record mode"
+      The contents of file "/tmp/test.jail" should equal "+ 'echo \"hello record\""
+    End
+
+    It 'ignores existing jail rules'
+      cmdjail() {
+        echo "- 'echo \"not blocked\"'" > bin/.cmd.jail
+        bin/cmdjail --record /tmp/test.jail -- 'echo "not blocked"'
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should equal "not blocked"
+      The stderr should include "[warn] cmdjail running in record mode"
+      The contents of file "/tmp/test.jail" should equal "+ 'echo \"not blocked\""
+    End
+
+    It 'records failing commands and preserves their exit code'
+      cmdjail() {
+        bin/cmdjail --record /tmp/test.jail -- 'cat no-such-file'
+      }
+      When run cmdjail
+      The status should equal 1
+      The stderr should include "[warn] cmdjail running in record mode"
+      The stderr should include "cat: no-such-file: No such file or directory"
+      The contents of file "/tmp/test.jail" should equal "+ 'cat no-such-file"
     End
   End
 End

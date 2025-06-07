@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -12,6 +13,12 @@ import (
 func main() {
 	conf := getConfig()
 	printLogDebug(os.Stdout, "config loaded: %+v\n", conf)
+
+	if conf.RecordFile != "" {
+		printLogWarn(os.Stderr, "cmdjail running in record mode")
+		os.Exit(recordIntentCmd(conf))
+	}
+
 	jailFile := getJailFile(conf)
 	printLogDebug(os.Stdout, "jail file loaded: %d allow rules, %d deny rules\n", len(jailFile.Allow), len(jailFile.Deny))
 	printLogDebug(os.Stdout, "evaluating intent command: %s\n", conf.IntentCmd)
@@ -53,6 +60,17 @@ func main() {
 
 	logWarn("implicitly blocked intent cmd: %s", conf.IntentCmd)
 	os.Exit(77)
+}
+
+func recordIntentCmd(conf Config) int {
+	printLogDebug(os.Stdout, "record mode enabled, recording to: %s\n", conf.RecordFile)
+	if err := appendRuleToFile(conf.RecordFile, conf.IntentCmd); err != nil {
+		printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
+		os.Exit(1)
+	}
+	printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, conf.IntentCmd)
+
+	return runCmd(conf.IntentCmd)
 }
 
 func getConfig() Config {
@@ -132,4 +150,18 @@ func runCmd(c string) int {
 	}
 
 	return 0
+}
+
+func appendRuleToFile(filepath, intentCmd string) error {
+	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	rule := fmt.Sprintf("+ '%s\n", intentCmd)
+	if _, err := f.WriteString(rule); err != nil {
+		return err
+	}
+	return nil
 }

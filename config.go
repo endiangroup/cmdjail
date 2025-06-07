@@ -23,6 +23,7 @@ var (
 	flagEnvReference string
 	flagJailFile     string
 	flagVerbose      bool
+	flagRecordFile   string
 	flagVersion      bool
 )
 
@@ -43,6 +44,7 @@ type envVars struct {
 	Log          string
 	EnvReference string `envconfig:"ENV_REFERENCE"`
 	JailFile     string
+	RecordFile   string
 	Verbose      bool
 }
 
@@ -59,10 +61,11 @@ func defaultEnvVars() (envVars, error) {
 }
 
 type Config struct {
-	IntentCmd string
-	Log       string
-	JailFile  string
-	Verbose   bool
+	IntentCmd  string
+	Log        string
+	JailFile   string
+	Verbose    bool
+	RecordFile string
 }
 
 var NoConfig = Config{}
@@ -159,10 +162,11 @@ func parseEnvAndFlags() (Config, error) {
 	}
 
 	return Config{
-		IntentCmd: cmd,
-		Log:       flagLog,
-		JailFile:  flagJailFile,
-		Verbose:   flagVerbose,
+		IntentCmd:  cmd,
+		Log:        flagLog,
+		JailFile:   flagJailFile,
+		Verbose:    flagVerbose,
+		RecordFile: flagRecordFile,
 	}, nil
 }
 
@@ -181,12 +185,13 @@ func splitAtEndOfArgs(args []string) ([]string, []string) {
 	return args, nil
 }
 
-func parseFlags(conf envVars) []string {
+func parseFlags(envvars envVars) []string {
 	// pflag.BoolVar(&flagVersion, "version", conf.Verbose, "print version info")
-	pflag.BoolVarP(&flagVerbose, "verbose", "v", conf.Verbose, "enable verbose mode")
-	pflag.StringVarP(&flagLog, "log-file", "l", conf.Log, "log file location e.g. /var/log/cmdjail.log. If set to \"\" logs to syslog. If unset logging is disabled.")
-	pflag.StringVarP(&flagEnvReference, "env-reference", "r", conf.EnvReference, "name of an environment variable that holds the cmd to execute e.g. SSH_ORIGINAL_COMMAND")
-	pflag.StringVarP(&flagJailFile, "jail-file", "j", conf.JailFile, "jail file location, if not set checks stdin")
+	pflag.BoolVarP(&flagVerbose, "verbose", "v", envvars.Verbose, "enable verbose mode")
+	pflag.StringVarP(&flagLog, "log-file", "l", envvars.Log, "log file location e.g. /var/log/cmdjail.log. If set to \"\" logs to syslog. If unset logging is disabled.")
+	pflag.StringVarP(&flagEnvReference, "env-reference", "e", envvars.EnvReference, "name of an environment variable that holds the cmd to execute e.g. SSH_ORIGINAL_COMMAND")
+	pflag.StringVarP(&flagJailFile, "jail-file", "j", envvars.JailFile, "jail file location, if not set checks stdin")
+	pflag.StringVarP(&flagRecordFile, "record", "r", envvars.RecordFile, "transparently run the intent cmd and append it to the specified file as a literal allow rule")
 
 	args, cmdOptions := splitAtEndOfArgs(os.Args)
 	pflag.CommandLine.Parse(args)

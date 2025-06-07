@@ -100,12 +100,13 @@ cmdjail [flags] -- 'command to run with arguments'
 
 Flags
 
-| Flag                | Environment Variable  | Description                                                                                                   |
-| ------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| -j, --jail-file     | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. Can also be piped to stdin. |
-| -l, --log-file      | CMDJAIL_LOG           | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                  |
-| -r, --env-reference | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                   |
-| -v, --verbose       | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                         |
+| Flag            | Shorthand | Environment Variable  | Description                                                                                                   |
+| --------------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| --jail-file     | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. Can also be piped to stdin. |
+| --log-file      | -l        | CMDJAIL_LOG           | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                  |
+| --env-reference | -e        | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                   |
+| --record        | -r        | CMDJAIL_RECORDFILE    | Transparently run the intent cmd and append it to the specified file as a literal allow rule.                 |
+| --verbose       | -v        | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                         |
 
 ### Jail File Examples (.cmd.jail)
 
@@ -248,3 +249,24 @@ Some notes...
 $ cmdjail -- 'cat /etc/passwd'
 [warn] blocked blacklisted intent cmd: cat /etc/passwd
 ```
+
+### Recording Mode
+
+`cmdjail` includes a recording mode that simplifies the process of building a new jail file. When you run `cmdjail` with the `--record <filepath>` flag, it will:
+
+1.  Execute the intent command immediately, bypassing all rule checks.
+2.  Append the executed command to the specified `<filepath>` as a literal allow rule (`+ '...'`).
+
+This is useful for populating a new `.cmd.jail` file by performing the allowed actions once.
+
+**Usage:**
+
+```sh
+# This will run 'git status' and add "+ 'git status" to ./my-new.jail
+cmdjail --record ./my-new.jail -- 'git status'
+
+# This will run 'ls -l' and add "+ 'ls -l" to the same file
+cmdjail --record ./my-new.jail -- 'ls -l'
+```
+
+> **Warning:** Recording mode executes commands without validation. Only use it in a trusted environment to build your initial ruleset.
