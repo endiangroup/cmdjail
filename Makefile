@@ -6,6 +6,8 @@
 ###############################################################################
 
 GO            ?= go
+GOOS          ?= $(shell go env GOOS)
+GOARCH        ?= $(shell go env GOARCH)
 
 # Use NOCACHE=1 to disable go test cache e.g.
 # 	$ NOCACHE=1 make test
@@ -37,11 +39,10 @@ bin/cmdjail: bin *.go
 #-- Building
 
 .PHONY: build
-build: build/cmdjail-linux-arm64 ## build binaries across platform
-
-build/cmdjail-linux-arm64: *.go
+build: ## Build binary for a specific platform (e.g., GOOS=linux GOARCH=arm64 make build)
 	@mkdir -p build
-	@GOOS=linux GOARCH=arm64 CGO_ENABLED=0 $(GO) build -o build/cmdjail-linux-arm64 .
+	@echo "Building for $(GOOS)/$(GOARCH)..."
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -o build/cmdjail-$(GOOS)-$(GOARCH) .
 
 #-- Testing
 .PHONY: test test-units test-features
