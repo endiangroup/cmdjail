@@ -30,33 +30,20 @@ Describe 'cmdjail.sh'
     The line 1 of stderr should include "[error] empty jail file"
   End
 
-  Describe 'exits 1 when intent cmd is empty'
-    It 'command options'
-      cmdjail() { 
-        bin/cmdjail -l /tmp/cmdjail.log --; 
+  Describe 'starts shell when intent cmd is empty'
+    It 'when no command options are provided'
+      cmdjail() {
+        echo "+ 'echo hello" > bin/.cmd.jail
+        bin/cmdjail -l /tmp/cmdjail.log
       }
+      Data
+      #|echo hello
+      #|exit
+      End
+
       When run cmdjail
-      The status should equal 1
-      The line 1 of stderr should equal "[error] no intent cmd provided"
-      The contents of file "/tmp/cmdjail.log" should include "[error] no intent cmd provided"
-    End
-    It 'env var'
-      cmdjail() { 
-        CMDJAIL_CMD="" bin/cmdjail -l /tmp/cmdjail.log;
-      }
-      When run cmdjail
-      The status should equal 1
-      The line 1 of stderr should equal "[error] no intent cmd provided"
-      The contents of file "/tmp/cmdjail.log" should include "[error] no intent cmd provided"
-    End
-    It 'env var reference'
-      cmdjail() { 
-        CMD="" CMDJAIL_ENV_REFERENCE="CMD" bin/cmdjail -l /tmp/cmdjail.log;
-      }
-      When run cmdjail
-      The status should equal 1
-      The line 1 of stderr should equal "[error] no intent cmd provided"
-      The contents of file "/tmp/cmdjail.log" should include "[error] no intent cmd provided"
+      The status should equal 0
+      The stdout should include "hello"
     End
   End
   
@@ -231,6 +218,39 @@ Describe 'cmdjail.sh'
       The stderr should include "[warn] cmdjail running in record mode"
       The stderr should include "cat: no-such-file: No such file or directory"
       The contents of file "/tmp/test.jail" should equal "+ 'cat no-such-file"
+    End
+  End
+
+  Describe 'shell mode'
+    It 'runs allowed commands and blocks disallowed ones'
+      cmdjail() {
+        echo "+ 'echo hello shell" > bin/.cmd.jail
+        bin/cmdjail -l /tmp/cmdjail.log
+      }
+      Data
+      #|echo hello shell
+      #|ls -l
+      #|exit
+      End
+
+      When run cmdjail
+      The status should equal 0
+      The stdout should include "hello shell"
+      The contents of file "/tmp/cmdjail.log" should include "[warn] implicitly blocked intent cmd: ls -l"
+    End
+
+    It 'exits when user types quit'
+      cmdjail() {
+        echo "+ 'echo hello shell" > bin/.cmd.jail
+        bin/cmdjail
+      }
+      Data
+      #|quit
+      End
+
+      When run cmdjail
+      The status should equal 0
+      The stdout should include "cmdjail>"
     End
   End
 End

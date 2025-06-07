@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func main() {
@@ -20,57 +22,94 @@ func main() {
 	}
 
 	jailFile := getJailFile(conf)
-	printLogDebug(os.Stdout, "jail file loaded: %d allow rules, %d deny rules\n", len(jailFile.Allow), len(jailFile.Deny))
-	printLogDebug(os.Stdout, "evaluating intent command: %s\n", conf.IntentCmd)
-
-	// Check blacklisted commands first
-	for i, deny := range jailFile.Deny {
-		printLogDebug(os.Stdout, "checking deny rule #%d: %s\n", i+1, deny.Raw())
-		match, err := deny.Matches(conf.IntentCmd)
-		if err != nil {
-			logErr("running matcher: %s", err.Error())
-			os.Exit(1)
-		}
-		if match {
-			logWarn("blocked blacklisted intent cmd: %s", conf.IntentCmd)
-			os.Exit(77)
-		}
+	if conf.Shell {
+		os.Exit(runShell(conf, jailFile))
 	}
 
-	// If there are no whitelist entries assume blacklist behaviour,
-	// any intent cmd that doesn't match an explicit deny matcher is
-	// permitted.
-	if len(jailFile.Allow) == 0 {
-		os.Exit(runCmd(conf.IntentCmd))
-	}
-
-	// Check whitelisted commands
-	for i, allow := range jailFile.Allow {
-		printLogDebug(os.Stdout, "checking allow rule #%d: %s\n", i+1, allow.Raw())
-		match, err := allow.Matches(conf.IntentCmd)
-		if err != nil {
-			logErr("running matcher: %s", err.Error())
-			os.Exit(1)
-		}
-		if match {
-			printLogDebug(os.Stdout, "command explicitly allowed, executing\n")
-			os.Exit(runCmd(conf.IntentCmd))
-		}
-	}
-
-	logWarn("implicitly blocked intent cmd: %s", conf.IntentCmd)
-	os.Exit(77)
+	os.Exit(evaluateAndRun(conf.IntentCmd, jailFile))
 }
 
 func recordIntentCmd(conf Config) int {
 	printLogDebug(os.Stdout, "record mode enabled, recording to: %s\n", conf.RecordFile)
 	if err := appendRuleToFile(conf.RecordFile, conf.IntentCmd); err != nil {
 		printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
-		os.Exit(1)
+		return 1
 	}
 	printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, conf.IntentCmd)
 
 	return runCmd(conf.IntentCmd)
+}
+
+func runShell(conf Config, jailFile JailFile) int {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	fmt.Print("cmdjail> ")
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if line == "exit" || line == "quit" {
+			return 0
+		}
+		if line == "" {
+			fmt.Print("cmdjail> ")
+			continue
+		}
+
+		if err := checkCmdSafety(line, conf.Log); err != nil {
+			printLogErr(os.Stderr, "%s\n", err.Error())
+			fmt.Print("cmdjail> ")
+			continue
+		}
+
+		evaluateAndRun(line, jailFile)
+		fmt.Print("cmdjail> ")
+	}
+
+	if err := scanner.Err(); err != nil {
+		printLogErr(os.Stderr, "reading from stdin: %v", err)
+		return 1
+	}
+	fmt.Println() // Print a newline on exit (e.g., Ctrl+D)
+	return 0
+}
+
+func evaluateAndRun(intentCmd string, jailFile JailFile) int {
+	printLogDebug(os.Stdout, "evaluating intent command: %s\n", intentCmd)
+
+	// Check blacklisted commands first
+	for i, deny := range jailFile.Deny {
+		printLogDebug(os.Stdout, "checking deny rule #%d: %s\n", i+1, deny.Raw())
+		match, err := deny.Matches(intentCmd)
+		if err != nil {
+			logErr("running matcher: %s", err.Error())
+			return 1
+		}
+		if match {
+			logWarn("blocked blacklisted intent cmd: %s", intentCmd)
+			return 77
+		}
+	}
+
+	if len(jailFile.Allow) == 0 {
+		return runCmd(intentCmd)
+	}
+
+	// Check whitelisted commands
+	for i, allow := range jailFile.Allow {
+		printLogDebug(os.Stdout, "checking allow rule #%d: %s\n", i+1, allow.Raw())
+		match, err := allow.Matches(intentCmd)
+		if err != nil {
+			logErr("running matcher: %s", err.Error())
+			return 1
+		}
+		if match {
+			printLogDebug(os.Stdout, "command explicitly allowed, executing\n")
+			return runCmd(intentCmd)
+		}
+	}
+
+	logWarn("implicitly blocked intent cmd: %s", intentCmd)
+	return 77
 }
 
 func getConfig() Config {
@@ -81,7 +120,8 @@ func getConfig() Config {
 			ErrCmdNotWrappedInQuotes,
 			ErrJailFileManipulationAttempt,
 			ErrJailBinaryManipulationAttempt,
-			ErrJailLogManipulationAttempt) {
+			ErrJailLogManipulationAttempt,
+			ErrShellModeWithRecord) {
 			os.Exit(77)
 		}
 		os.Exit(1)
@@ -93,7 +133,7 @@ func getJailFile(conf Config) JailFile {
 	var jailFileReader io.Reader
 	var err error
 
-	if isStdinSet() {
+	if isStdinSet() && !conf.Shell {
 		jailFileReader = os.Stdin
 	} else {
 		jailFileReader, err = os.Open(conf.JailFile)

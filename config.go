@@ -30,7 +30,7 @@ var (
 var (
 	// TODO: promote to type and capture cmd to log
 	ErrCmdNotWrappedInQuotes = errors.New("cmd must be wrapped in single quotes")
-	ErrNoIntentCmd           = errors.New("no intent cmd provided")
+	ErrShellModeWithRecord   = errors.New("shell mode cannot be used with --record mode")
 	// TODO: promote to type and capture cmd to log
 	ErrJailFileManipulationAttempt = fmt.Errorf("attempting to manipulate: %s. Aborted", JailFilename)
 	// TODO: promote to type and capture cmd to log
@@ -66,6 +66,7 @@ type Config struct {
 	JailFile   string
 	Verbose    bool
 	RecordFile string
+	Shell      bool
 }
 
 var NoConfig = Config{}
@@ -99,6 +100,7 @@ func parseEnvAndFlags() (Config, error) {
 	if flagVerbose {
 		debug = true
 	}
+	var logVal string
 
 	// Configure logging based on flag and environment variable precedence.
 	logFileIsSetByFlag := pflag.CommandLine.Changed("log-file")
@@ -107,7 +109,7 @@ func parseEnvAndFlags() (Config, error) {
 	if !logFileIsSetByEnv && !logFileIsSetByFlag {
 		log.SetOutput(io.Discard)
 	} else {
-		logVal := envvars.Log
+		logVal = envvars.Log
 		if logFileIsSetByFlag {
 			logVal = flagLog
 		}
@@ -150,15 +152,19 @@ func parseEnvAndFlags() (Config, error) {
 		printLogDebug(os.Stderr, "intent command loaded from arguments\n")
 	}
 
-	// TODO: These are all very simplistic checks, likely need to make them more sophisticated
+	shellMode := false
 	if cmd == "" {
-		return NoConfig, ErrNoIntentCmd
-	} else if strings.Contains(cmd, JailFilename) {
-		return NoConfig, ErrJailFileManipulationAttempt
-	} else if strings.Contains(cmd, filepath.Base(os.Args[0])) {
-		return NoConfig, ErrJailBinaryManipulationAttempt
-	} else if flagLog != "" && strings.Contains(cmd, flagLog) {
-		return NoConfig, ErrJailLogManipulationAttempt
+		shellMode = true
+	}
+
+	if shellMode && flagRecordFile != "" {
+		return NoConfig, ErrShellModeWithRecord
+	}
+
+	if cmd != "" {
+		if err := checkCmdSafety(cmd, logVal); err != nil {
+			return NoConfig, err
+		}
 	}
 
 	return Config{
@@ -167,7 +173,19 @@ func parseEnvAndFlags() (Config, error) {
 		JailFile:   flagJailFile,
 		Verbose:    flagVerbose,
 		RecordFile: flagRecordFile,
+		Shell:      shellMode,
 	}, nil
+}
+
+func checkCmdSafety(cmd, logPath string) error {
+	if strings.Contains(cmd, JailFilename) {
+		return ErrJailFileManipulationAttempt
+	} else if strings.Contains(cmd, filepath.Base(os.Args[0])) {
+		return ErrJailBinaryManipulationAttempt
+	} else if logPath != "" && strings.Contains(cmd, logPath) {
+		return ErrJailLogManipulationAttempt
+	}
+	return nil
 }
 
 func splitAtEndOfArgs(args []string) ([]string, []string) {

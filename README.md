@@ -270,3 +270,30 @@ cmdjail --record ./my-new.jail -- 'ls -l'
 ```
 
 > **Warning:** Recording mode executes commands without validation. Only use it in a trusted environment to build your initial ruleset.
+
+### Interactive Shell Mode
+
+`cmdjail` can run as an interactive, restricted shell. This is useful for providing users with limited, interactive access to a system where every command they type is validated against the jail file.
+
+If no intent command is provided via arguments (`-- '...'`) or environment variables (`CMDJAIL_CMD`), `cmdjail` will automatically start in interactive shell mode.
+
+**Usage:**
+
+```bash
+# Start the interactive shell using the rules in ./.cmd.jail
+$ cmdjail
+```
+
+Once started, `cmdjail` will display a prompt (`cmdjail> `). You can type commands, and they will be executed if allowed by the rules.
+
+```bash
+$ cmdjail
+cmdjail> ls -l
+total 8
+-rw-r--r-- 1 user group 12 Jun 1 12:00 .cmd.jail
+cmdjail> rm /etc/hosts
+[warn] implicitly blocked intent cmd: rm /etc/hosts
+cmdjail> exit
+```
+
+To exit the shell, type `exit` or `quit`, or press `Ctrl+D`.

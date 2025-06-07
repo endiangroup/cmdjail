@@ -88,4 +88,14 @@ func TestParseEnvAndFlags(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Returns config with Shell mode true when no command is provided", func(t *testing.T) {
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+		os.Args = []string{os.Args[0]}
+		os.Clearenv()
+
+		c, err := parseEnvAndFlags()
+		assert.NoError(t, err)
+		assert.True(t, c.Shell)
+		assert.Empty(t, c.IntentCmd)
+	})
 }
