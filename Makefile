@@ -12,7 +12,8 @@ GOARCH        ?= $(shell go env GOARCH)
 # Use NOCACHE=1 to disable go test cache e.g.
 # 	$ NOCACHE=1 make test
 ifdef NOCACHE
-	TEST_CACHE_CONTROL ?= -count=1
+	TEST_CACHE_CONTROL  ?= -count=1
+	BUILD_CACHE_CONTROL ?= -a
 endif
 
 # Use VERBOSE=1 to enable test output verbosity e.g.
@@ -20,6 +21,7 @@ endif
 ifdef VERBOSE
 	TEST_VERBOSE_CONTROL      ?= -v
 	LINT_VERBOSE_CONTROL      ?= -v
+	BUILD_VERBOSE_CONTROL     ?= -v
 	SHELLSPEC_VERBOSE_CONTROL ?= --format documentation
 endif
 
@@ -34,7 +36,7 @@ help:
 
 bin/cmdjail: bin *.go
 	@mkdir -p bin
-	@$(GO) build -o bin/cmdjail .
+	@$(GO) build $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o bin/cmdjail .
 
 #-- Building
 
@@ -42,7 +44,7 @@ bin/cmdjail: bin *.go
 build: ## Build binary for a specific platform (e.g., GOOS=linux GOARCH=arm64 make build)
 	@mkdir -p build
 	@echo "Building for $(GOOS)/$(GOARCH)..."
-	@GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build -o build/cmdjail-$(GOOS)-$(GOARCH) .
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o build/cmdjail-$(GOOS)-$(GOARCH) .
 
 #-- Testing
 .PHONY: test test-units test-features
