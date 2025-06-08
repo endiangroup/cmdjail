@@ -16,7 +16,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 		cmd := "cmd -s --long-flag -a=123 -a 123"
 		os.Setenv(EnvPrefix+"_CMD", cmd)
 		log := "/tmp/cmdjail.log"
-		os.Setenv(EnvPrefix+"_LOG", log)
+		os.Setenv(EnvPrefix+"_LOGFILE", log)
 		jailfile := "/tmp/.cmd.jail"
 		os.Setenv(EnvPrefix+"_JAILFILE", jailfile)
 		os.Setenv(EnvPrefix+"_VERBOSE", "true")
@@ -96,6 +96,30 @@ func TestParseEnvAndFlags(t *testing.T) {
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)
 		assert.True(t, c.Shell)
+		assert.Empty(t, c.IntentCmd)
+	})
+	t.Run("Returns config with CheckMode true when --check is provided", func(t *testing.T) {
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+		os.Args = []string{os.Args[0], "--check"}
+		os.Clearenv()
+
+		c, err := parseEnvAndFlags()
+		assert.NoError(t, err)
+		assert.True(t, c.CheckMode)
+		assert.False(t, c.Shell)
+		assert.Empty(t, c.IntentCmd)
+	})
+
+	t.Run("Returns config with CheckMode true when --check-intent-cmds is provided", func(t *testing.T) {
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+		os.Args = []string{os.Args[0], "--check-intent-cmds", "/tmp/cmds"}
+		os.Clearenv()
+
+		c, err := parseEnvAndFlags()
+		assert.NoError(t, err)
+		assert.True(t, c.CheckMode)
+		assert.Equal(t, "/tmp/cmds", c.CheckIntentCmdsFile)
+		assert.False(t, c.Shell)
 		assert.Empty(t, c.IntentCmd)
 	})
 }

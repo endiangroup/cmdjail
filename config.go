@@ -36,6 +36,11 @@ var (
 
 	flagVersion     bool
 	flagVersionDesc string = "Print version information and exit."
+
+	flagCheck               bool
+	flagCheckDesc           string = "Validate jailfile syntax."
+	flagCheckIntentCmds     string
+	flagCheckIntentCmdsDesc string = "Path to a file with commands to test (use '-' for stdin)."
 )
 
 var (
@@ -71,13 +76,15 @@ func defaultEnvVars() (envVars, error) {
 }
 
 type Config struct {
-	IntentCmd  string
-	Log        string
-	JailFile   string
-	Verbose    bool
-	RecordFile string
-	Shell      bool
-	Version    bool
+	IntentCmd           string
+	Log                 string
+	JailFile            string
+	Verbose             bool
+	RecordFile          string
+	Shell               bool
+	Version             bool
+	CheckMode           bool
+	CheckIntentCmdsFile string
 }
 
 var NoConfig = Config{}
@@ -98,19 +105,21 @@ Usage:
 When no command is provided, cmdjail starts an interactive shell.
 
 Flags:
-  -j, --jail-file <path>      `+flagJailFileDesc+`
-                              (Default: .cmd.jail in binary's directory)
-                              (Env: CMDJAIL_JAILFILE)
-  -l, --log-file <path>       `+flagLogFileDesc+`
-                              (Env: CMDJAIL_LOGFILE)
-  -e, --env-reference <var>   `+flagEnvReferenceDesc+`
-                              (Env: CMDJAIL_ENV_REFERENCE)
-  -r, --record-file <path>    `+flagRecordFileDesc+`
-                              (Env: CMDJAIL_RECORDFILE)
-  -v, --verbose               `+flagVerboseDesc+`
-                              (Env: CMDJAIL_VERBOSE)
-      --version               `+flagVersionDesc+`
-  -h, --help                  Show this help message.
+  -j, --jail-file <path>         `+flagJailFileDesc+`
+                                 (Default: .cmd.jail in binary's directory)
+                                 (Env: CMDJAIL_JAILFILE)
+  -l, --log-file <path>          `+flagLogFileDesc+`
+                                 (Env: CMDJAIL_LOGFILE)
+  -e, --env-reference <var>      `+flagEnvReferenceDesc+`
+                                 (Env: CMDJAIL_ENV_REFERENCE)
+  -r, --record-file <path>       `+flagRecordFileDesc+`
+                                 (Env: CMDJAIL_RECORDFILE)
+  -c, --check                    `+flagCheckDesc+`
+      --check-intent-cmds <path> `+flagCheckIntentCmdsDesc+`
+  -v, --verbose                  `+flagVerboseDesc+`
+                                 (Env: CMDJAIL_VERBOSE)
+      --version                  `+flagVersionDesc+`
+  -h, --help                     Show this help message.
 
 The intent command can also be set directly via the CMDJAIL_CMD environment variable.`)
 	}
@@ -123,6 +132,8 @@ func parseFlags(envvars envVars) []string {
 	pflag.StringVarP(&flagEnvReference, "env-reference", "e", envvars.EnvReference, flagEnvReferenceDesc)
 	pflag.StringVarP(&flagJailFile, "jail-file", "j", envvars.JailFile, flagJailFileDesc)
 	pflag.StringVarP(&flagRecordFile, "record-file", "r", envvars.RecordFile, flagRecordFileDesc)
+	pflag.BoolVarP(&flagCheck, "check", "c", false, flagCheckDesc)
+	pflag.StringVar(&flagCheckIntentCmds, "check-intent-cmds", "", flagCheckIntentCmdsDesc)
 
 	args, cmdOptions := splitAtEndOfArgs(os.Args)
 	pflag.CommandLine.Parse(args)
@@ -212,7 +223,8 @@ func parseEnvAndFlags() (Config, error) {
 		printLogDebug(os.Stderr, "intent command loaded from arguments")
 	}
 
-	shellMode := cmd == ""
+	checkMode := flagCheck || flagCheckIntentCmds != ""
+	shellMode := cmd == "" && !checkMode
 
 	if cmd != "" {
 		if err := checkCmdSafety(cmd, logVal); err != nil {
@@ -221,13 +233,15 @@ func parseEnvAndFlags() (Config, error) {
 	}
 
 	return Config{
-		IntentCmd:  cmd,
-		Log:        flagLogFile,
-		JailFile:   flagJailFile,
-		Verbose:    flagVerbose,
-		RecordFile: flagRecordFile,
-		Shell:      shellMode,
-		Version:    flagVersion,
+		IntentCmd:           cmd,
+		Log:                 flagLogFile,
+		JailFile:            flagJailFile,
+		Verbose:             flagVerbose,
+		RecordFile:          flagRecordFile,
+		Shell:               shellMode,
+		Version:             flagVersion,
+		CheckMode:           checkMode,
+		CheckIntentCmdsFile: flagCheckIntentCmds,
 	}, nil
 }
 

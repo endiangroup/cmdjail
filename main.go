@@ -17,6 +17,14 @@ var (
 	date    string
 )
 
+// CheckResult holds the outcome of a command evaluation.
+type CheckResult struct {
+	Cmd     string
+	Allowed bool
+	Reason  string
+	Matcher Matcher
+}
+
 func main() {
 	conf := getConfig()
 	printLogDebug(os.Stdout, "config loaded: %+v", conf)
@@ -24,6 +32,12 @@ func main() {
 	if conf.Version {
 		printVersion()
 		os.Exit(0)
+	}
+
+	// Check mode is a distinct mode of operation that exits early.
+	if conf.CheckMode {
+		printLogDebug(os.Stderr, "running in check mode")
+		os.Exit(runCheckMode(conf, getJailFile(conf)))
 	}
 
 	if conf.Shell {
@@ -115,7 +129,8 @@ func runShell(conf Config, jailFile JailFile) int {
 	return 0
 }
 
-func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
+// evaluateCmd checks an intent command against a jail file without executing it.
+func evaluateCmd(intentCmd string, jailFile JailFile) CheckResult {
 	printLogDebug(os.Stdout, "evaluating intent command: %s", intentCmd)
 
 	// Check blacklisted commands first
@@ -123,17 +138,16 @@ func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
 		printLogDebug(os.Stdout, "checking deny rule #%d: %s", i+1, deny.Raw())
 		match, err := deny.Matches(intentCmd)
 		if err != nil {
-			logErr("running matcher: %s", err.Error())
-			return false, 1
+			return CheckResult{Cmd: intentCmd, Allowed: false, Reason: fmt.Sprintf("error running matcher: %s", err.Error())}
 		}
 		if match {
-			logWarn("blocked blacklisted intent cmd: %s", intentCmd)
-			return false, 77
+			return CheckResult{Cmd: intentCmd, Allowed: false, Reason: "Matched deny rule", Matcher: deny}
 		}
 	}
 
 	if len(jailFile.Allow) == 0 {
-		return true, runCmd(intentCmd)
+		// Blacklist only mode, command is allowed if not denied.
+		return CheckResult{Cmd: intentCmd, Allowed: true, Reason: "No allow rules defined, command allowed by default"}
 	}
 
 	// Check whitelisted commands
@@ -141,17 +155,106 @@ func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
 		printLogDebug(os.Stdout, "checking allow rule #%d: %s", i+1, allow.Raw())
 		match, err := allow.Matches(intentCmd)
 		if err != nil {
-			logErr("running matcher: %s", err.Error())
-			return false, 1
+			return CheckResult{Cmd: intentCmd, Allowed: false, Reason: fmt.Sprintf("error running matcher: %s", err.Error())}
 		}
 		if match {
-			printLogDebug(os.Stdout, "command explicitly allowed, executing")
-			return true, runCmd(intentCmd)
+			return CheckResult{Cmd: intentCmd, Allowed: true, Reason: "Matched allow rule", Matcher: allow}
 		}
 	}
 
-	logWarn("implicitly blocked intent cmd: %s", intentCmd)
-	return false, 77
+	return CheckResult{Cmd: intentCmd, Allowed: false, Reason: "Implicitly blocked"}
+}
+
+func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
+	result := evaluateCmd(intentCmd, jailFile)
+
+	if !result.Allowed {
+		if result.Matcher != nil { // Matched a deny rule
+			logWarn("blocked blacklisted intent cmd: %s", intentCmd)
+		} else { // Implicitly blocked
+			logWarn("implicitly blocked intent cmd: %s", intentCmd)
+		}
+		return false, 77
+	}
+
+	if result.Matcher != nil {
+		printLogDebug(os.Stdout, "command explicitly allowed, executing")
+	}
+	return true, runCmd(intentCmd)
+}
+
+func runCheckMode(conf Config, jailFile JailFile) int {
+	printMsg(os.Stdout, "Jail file '%s' syntax is valid.", conf.JailFile)
+
+	var commands []string
+	var err error
+	source := "command line"
+
+	if conf.CheckIntentCmdsFile != "" {
+		var r io.Reader
+		if conf.CheckIntentCmdsFile == "-" {
+			source = "stdin"
+			printMsg(os.Stdout, "\nReading commands from stdin to check...")
+			r = os.Stdin
+		} else {
+			source = conf.CheckIntentCmdsFile
+			file, fileErr := os.Open(conf.CheckIntentCmdsFile)
+			if fileErr != nil {
+				printLogErr(os.Stderr, "reading test file %s: %v", conf.CheckIntentCmdsFile, fileErr)
+				return 1
+			}
+			defer file.Close()
+			r = file
+		}
+		commands, err = readLines(r)
+		if err != nil {
+			printLogErr(os.Stderr, "reading test commands from %s: %v", source, err)
+			return 1
+		}
+	} else if conf.IntentCmd != "" {
+		commands = []string{conf.IntentCmd}
+	}
+
+	if len(commands) == 0 {
+		printMsg(os.Stdout, "No commands provided to check. Exiting.")
+		return 0
+	}
+
+	printMsg(os.Stdout, "\nTesting commands from %s...", source)
+	blockedCount := 0
+	for _, cmd := range commands {
+		result := evaluateCmd(cmd, jailFile)
+		if result.Allowed {
+			printMsg(os.Stdout, "\n[ALLOWED] '%s'", cmd)
+			printMsg(os.Stdout, "  Reason: %s", result.Reason)
+			if result.Matcher != nil {
+				printMsg(os.Stdout, "  Matcher: %s", result.Matcher.Raw())
+			}
+		} else {
+			blockedCount++
+			printMsg(os.Stdout, "\n[BLOCKED] '%s'", cmd)
+			printMsg(os.Stdout, "  Reason: %s", result.Reason)
+			if result.Matcher != nil {
+				printMsg(os.Stdout, "  Matcher: %s", result.Matcher.Raw())
+			}
+		}
+	}
+
+	printMsg(os.Stdout, "\nCheck complete. %d/%d commands would be blocked.", blockedCount, len(commands))
+	if blockedCount > 0 {
+		return 1
+	}
+	return 0
+}
+
+// readLines reads from a reader and returns its lines as a slice of strings.
+func readLines(r io.Reader) ([]string, error) {
+	var lines []string
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
 }
 
 func getConfig() Config {

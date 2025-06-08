@@ -8,6 +8,7 @@ Describe 'cmdjail.sh'
     rm -f .some.log
     rm -f /tmp/cmdjail.log
     rm -f /tmp/test.jail
+    rm -f /tmp/test-cmds.txt
   }
   BeforeEach build
   AfterEach cleanup
@@ -222,7 +223,7 @@ Describe 'cmdjail.sh'
   Describe 'record mode'
     It 'runs the command and records it to a file'
       cmdjail() {
-        bin/cmdjail --record /tmp/test.jail -- 'echo "hello record"'
+        bin/cmdjail --record-file /tmp/test.jail -- 'echo "hello record"'
       }
       When run cmdjail
       The status should equal 0
@@ -234,7 +235,7 @@ Describe 'cmdjail.sh'
     It 'ignores existing jail rules'
       cmdjail() {
         echo "- 'echo \"blocked\"" > bin/.cmd.jail
-        bin/cmdjail --record /tmp/test.jail -- 'echo "blocked"'
+        bin/cmdjail --record-file /tmp/test.jail -- 'echo "blocked"'
       }
       When run cmdjail
       The status should equal 0
@@ -245,7 +246,7 @@ Describe 'cmdjail.sh'
 
     It 'records failing commands and preserves their exit code'
       cmdjail() {
-        bin/cmdjail --record /tmp/test.jail -- 'cat no-such-file'
+        bin/cmdjail --record-file /tmp/test.jail -- 'cat no-such-file'
       }
       When run cmdjail
       The status should equal 1
@@ -303,10 +304,10 @@ Describe 'cmdjail.sh'
       The status should equal 0
     End
 
-    It 'records all commands when --record is used in shell mode'
+    It 'records all commands when --record-file is used in shell mode'
       cmdjail() {
         # No .cmd.jail file is needed in record mode
-        bin/cmdjail --record /tmp/test.jail
+        bin/cmdjail --record-file /tmp/test.jail
       }
       Data
       #|echo first command
@@ -327,7 +328,7 @@ Describe 'cmdjail.sh'
     It 'records failing commands in shell record mode'
       cmdjail() {
         # No .cmd.jail file is needed in record mode
-        bin/cmdjail --record /tmp/test.jail
+        bin/cmdjail --record-file /tmp/test.jail
       }
       Data
       #|cat no-such-file
@@ -340,6 +341,81 @@ Describe 'cmdjail.sh'
       The stderr should include "cat: no-such-file: No such file or directory"
       The contents of file "/tmp/test.jail" should eq "+ 'cat no-such-file
 + 'exit"
+    End
+  End
+
+  Describe 'check mode'
+    It 'validates jailfile syntax and exits 0'
+      cmdjail() {
+        echo "+ 'ls -l" > bin/.cmd.jail
+        bin/cmdjail --check -j bin/.cmd.jail
+      }
+      When run cmdjail
+      The status should equal 0
+      The line 1 of stdout should equal "Jail file 'bin/.cmd.jail' syntax is valid."
+      The line 2 of stdout should equal "No commands provided to check. Exiting."
+    End
+
+    It 'validates jailfile and exits 1 on syntax error'
+      cmdjail() {
+        echo "invalid rule" > bin/.cmd.jail
+        bin/cmdjail --check
+      }
+      When run cmdjail
+      The status should equal 1
+      The stderr should include "parsing jail file"
+    End
+
+    It 'checks a single allowed command and exits 0'
+      cmdjail() {
+        echo "+ 'ls -l" > bin/.cmd.jail
+        bin/cmdjail --check -- 'ls -l'
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should include "[ALLOWED] 'ls -l'"
+      The stdout should include "Check complete. 0/1 commands would be blocked."
+    End
+
+    It 'checks a single blocked command and exits 1'
+      cmdjail() {
+        echo "+ 'ls -l" > bin/.cmd.jail
+        bin/cmdjail --check -- 'rm -rf /'
+      }
+      When run cmdjail
+      The status should equal 1
+      The stdout should include "[BLOCKED] 'rm -rf /'"
+      The stdout should include "Check complete. 1/1 commands would be blocked."
+    End
+
+    It 'checks a file of commands and exits 1'
+      cmdjail() {
+        echo "+ 'ls -l" > bin/.cmd.jail
+        echo "whoami" > /tmp/test-cmds.txt
+        echo "ls -l" >> /tmp/test-cmds.txt
+        bin/cmdjail --check-intent-cmds /tmp/test-cmds.txt
+      }
+      When run cmdjail
+      The status should equal 1
+      The stdout should include "[BLOCKED] 'whoami'"
+      The stdout should include "[ALLOWED] 'ls -l'"
+      The stdout should include "Check complete. 1/2 commands would be blocked."
+    End
+
+    It 'checks commands from stdin and exits 1'
+      cmdjail() {
+        echo "+ 'ls -l" > bin/.cmd.jail
+        bin/cmdjail --check-intent-cmds -
+      }
+      Data
+      #|whoami
+      #|ls -l
+      End
+      When run cmdjail
+      The status should equal 1
+      The stdout should include "[BLOCKED] 'whoami'"
+      The stdout should include "[ALLOWED] 'ls -l'"
+      The stdout should include "Check complete. 1/2 commands would be blocked."
     End
   End
 End

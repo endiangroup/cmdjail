@@ -100,14 +100,16 @@ cmdjail [flags] -- 'command to run with arguments'
 
 Flags
 
-| Flag            | Shorthand | Environment Variable  | Description                                                                                                                                                                           |
-| --------------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| --jail-file     | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. When set to "-" it reads from stdin.                                                                |
-| --log-file      | -l        | CMDJAIL_LOGFILE       | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                                                                                          |
-| --env-reference | -e        | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                                                                                           |
-| --record-file   | -r        | CMDJAIL_RECORDFILE    | Enables recording mode. When this flag is used, no jail file is loaded and no rules are checked. All commands are executed and appended to the specified file as literal allow rules. |
-| --verbose       | -v        | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                                                                                                 |
-| --version       |           |                       | Print version information and exit.                                                                                                                                                   |
+| Flag                    | Shorthand | Environment Variable  | Description                                                                                                                                                                           |
+| ----------------------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| --jail-file             | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. When set to "-" it reads from stdin.                                                                |
+| --log-file              | -l        | CMDJAIL_LOGFILE       | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                                                                                          |
+| --env-reference         | -e        | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                                                                                           |
+| --record-file           | -r        | CMDJAIL_RECORDFILE    | Enables recording mode. When this flag is used, no jail file is loaded and no rules are checked. All commands are executed and appended to the specified file as literal allow rules. |
+| --check                 | -c        |                       | Validate jailfile syntax and test commands without executing them.                                                                                                                    |
+| --check-intent-cmds     |           |                       | Path to a file with commands to test (use '-' for stdin). Implies --check.                                                                                                            |
+| --verbose               | -v        | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                                                                                                 |
+| --version               |           |                       | Print version information and exit.                                                                                                                                                   |
 
 ### Jail File Examples (.cmd.jail)
 
@@ -250,6 +252,92 @@ Some notes...
 $ cmdjail -- 'cat /etc/passwd'
 [warn] blocked blacklisted intent cmd: cat /etc/passwd
 ```
+
+### Check Mode
+
+`cmdjail` provides a check mode to validate your jail file and test commands without executing them. This is highly recommended for safely developing and testing your rules.
+
+Check mode is activated with the `--check` (or `-c`) flag.
+
+1.  **Validate Jail File Syntax:**
+    Run `cmdjail --check` to parse the jail file and report any syntax errors.
+
+    ```sh
+    $ cmdjail --check
+    Jail file 'bin/.cmd.jail' syntax is valid.
+    No commands provided to check. Exiting.
+    ```
+
+2.  **Test a Single Command:**
+    Combine `--check` with a command argument to see if it would be allowed or blocked.
+
+    ```sh
+    $ cmdjail --check -- 'git push'
+    Jail file 'bin/.cmd.jail' syntax is valid.
+
+    Testing commands from command line...
+
+    [BLOCKED] 'git push'
+      Reason: Matched deny rule
+      Matcher: - 'git push
+
+    Check complete. 1/1 commands would be blocked.
+    ```
+
+3.  **Test Multiple Commands from a File:**
+    Use the `--check-intent-cmds` flag to provide a path to a text file containing one command per line. This will test your rules in bulk.
+
+    `commands-to-test.txt`:
+    ```
+    git status
+    git push
+    ls -l
+    ```
+
+    ```sh
+    $ cmdjail --check-intent-cmds commands-to-test.txt
+    Jail file 'bin/.cmd.jail' syntax is valid.
+
+    Testing commands from commands-to-test.txt...
+
+    [ALLOWED] 'git status'
+      Reason: Matched allow rule
+      Matcher: + r'^git
+
+    [BLOCKED] 'git push'
+      Reason: Matched deny rule
+      Matcher: - 'git push
+
+    [BLOCKED] 'ls -l'
+      Reason: Implicitly blocked
+
+    Check complete. 2/3 commands would be blocked.
+    ```
+
+4.  **Test Multiple Commands from Stdin:**
+    You can also pipe commands into `cmdjail` by setting the file path to `-`.
+
+    ```sh
+    $ cat commands-to-test.txt | cmdjail --check-intent-cmds -
+    Jail file 'bin/.cmd.jail' syntax is valid.
+
+    Reading commands from stdin to check...
+
+    Testing commands from stdin...
+
+    [ALLOWED] 'git status'
+      Reason: Matched allow rule
+      Matcher: + r'^git
+
+    [BLOCKED] 'git push'
+      Reason: Matched deny rule
+      Matcher: - 'git push
+
+    [BLOCKED] 'ls -l'
+      Reason: Implicitly blocked
+
+    Check complete. 2/3 commands would be blocked.
+    ```
 
 ### Recording Mode
 
