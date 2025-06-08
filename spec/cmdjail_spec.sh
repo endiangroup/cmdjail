@@ -96,6 +96,16 @@ Describe 'cmdjail.sh'
       The status should equal 1
       The line 1 of stderr should equal "[error] jail file and check commands cannot both be read from stdin"
     End
+    # It 'prevents safety check bypass via string obfuscation'
+    #   cmdjail() {
+    #     echo "+ r'^cat" > bin/.cmd.jail
+    #     bin/cmdjail -- 'cat ".cmd."jail'
+    #   }
+    #   When run cmdjail
+    #   # This test will fail until the safety check vulnerability is fixed.
+    #   The status should equal 77
+    #   The stderr should include "attempting to manipulate"
+    # End
   End
 
   Describe 'whitelist only'
@@ -152,6 +162,28 @@ Describe 'cmdjail.sh'
       When run cmdjail
       The status should equal 0
       The stdout should include "total"
+    End
+  End
+
+  Describe 'configuration precedence'
+    It 'prefers command-line flag over environment variable for jail-file'
+      cmdjail() {
+        echo "+ 'echo flag" > /tmp/test.jail
+        CMDJAIL_JAILFILE=/non/existent/path bin/cmdjail -j /tmp/test.jail -- 'echo flag'
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should equal "flag"
+    End
+
+    It 'prefers command-line argument over environment variable for intent-cmd'
+      cmdjail() {
+        echo "+ 'echo arg" > bin/.cmd.jail
+        CMDJAIL_CMD="echo env" bin/cmdjail -- 'echo arg'
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should equal "arg"
     End
   End
 
@@ -424,6 +456,18 @@ Describe 'cmdjail.sh'
       The stdout should include "[BLOCKED] 'whoami'"
       The stdout should include "[ALLOWED] 'ls -l'"
       The stdout should include "Check complete. 1/2 commands would be blocked."
+    End
+
+    It 'exits 1 when --check-intent-cmds file does not exist'
+      cmdjail() {
+        echo "+ 'ls -l" > bin/.cmd.jail
+        bin/cmdjail --check-intent-cmds /no/such/file.txt -- 'ls -l'
+      }
+      When run cmdjail
+      The status should equal 1
+      The stdout should include "syntax is valid"
+      The stderr should include "reading test file"
+      The stderr should include "no such file or directory"
     End
   End
 
