@@ -141,4 +141,24 @@ func TestItSuccesfullyParsesTheJailFile(t *testing.T) {
 			})
 		}
 	})
+	t.Run("with comments and blank lines", func(t *testing.T) {
+		content := `
+
+	# This is a comment
+	+ 'ls -l
+
+	- r'^rm
+	# Another comment
+	`
+
+		b := bytes.NewBufferString(content)
+		jf, err := parseJailFile(NoConfig, b)
+
+		assert.NoError(t, err)
+		assert.Len(t, jf.Allow, 1)
+		assert.Len(t, jf.Deny, 1)
+		assert.Equal(t, "ls -l", jf.Allow[0].(LiteralMatcher).str)
+		assert.Equal(t, "+ 'ls -l", jf.Allow[0].Raw())
+		assert.Equal(t, "- r'^rm", jf.Deny[0].Raw())
+	})
 }

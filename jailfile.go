@@ -166,35 +166,38 @@ func parseJailFile(conf Config, f io.Reader) (JailFile, error) {
 	var jf JailFile
 	for i := 1; scanner.Scan(); i++ {
 		line := scanner.Text()
-		if line != "" {
-			line = strings.TrimSpace(line)
-			if !strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "+") {
-				return jf, NewJailFileParserErr(conf, i, line, rsnMissingPlusOrMinus)
-			}
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
 
-			if len(line) < 2 {
-				return jf, NewJailFileParserErr(conf, i, line, rsnNoMatcher)
-			}
+		if !strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "+") {
+			return jf, NewJailFileParserErr(conf, i, line, rsnMissingPlusOrMinus)
+		}
 
-			var err error
-			var m Matcher
-			if line[2] == '\'' {
-				m = NewLiteralMatcher(newMatcher(line, conf.JailFile, i), line[3:])
-			} else if line[2] == 'r' && line[3] == '\'' {
-				m, err = NewRegexMatcher(newMatcher(line, conf.JailFile, i), line[4:])
-				if err != nil {
-					return jf, NewJailFileParserErr(conf, i, line, err.Error())
-				}
-			} else {
-				m = NewCmdMatcher(newMatcher(line, conf.JailFile, i), line[2:])
-			}
+		rule := strings.TrimSpace(line[1:])
+		if rule == "" {
+			return jf, NewJailFileParserErr(conf, i, line, rsnNoMatcher)
+		}
 
-			switch line[0] {
-			case '+':
-				jf.Allow = append(jf.Allow, m)
-			case '-':
-				jf.Deny = append(jf.Deny, m)
+		var err error
+		var m Matcher
+		if strings.HasPrefix(rule, "'") {
+			m = NewLiteralMatcher(newMatcher(line, conf.JailFile, i), strings.TrimPrefix(rule, "'"))
+		} else if strings.HasPrefix(rule, "r'") {
+			m, err = NewRegexMatcher(newMatcher(line, conf.JailFile, i), strings.TrimPrefix(rule, "r'"))
+			if err != nil {
+				return jf, NewJailFileParserErr(conf, i, line, err.Error())
 			}
+		} else {
+			m = NewCmdMatcher(newMatcher(line, conf.JailFile, i), rule, conf.ShellCmd)
+		}
+
+		switch line[0] {
+		case '+':
+			jf.Allow = append(jf.Allow, m)
+		case '-':
+			jf.Deny = append(jf.Deny, m)
 		}
 	}
 
