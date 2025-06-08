@@ -39,9 +39,9 @@ var (
 )
 
 type envVars struct {
-	IntentCmd    string `envconfig:"CMD"`
+	IntentCmd    string `envconfig:"CMDJAIL_CMD"`
 	Log          string
-	EnvReference string `envconfig:"ENV_REFERENCE"`
+	EnvReference string `envconfig:"CMDJAIL_ENV_REFERENCE"`
 	JailFile     string
 	RecordFile   string
 	Verbose      bool
@@ -99,12 +99,12 @@ func parseEnvAndFlags() (Config, error) {
 	if flagVerbose {
 		debug = true
 	}
-	var logVal string
 
 	// Configure logging based on flag and environment variable precedence.
 	logFileIsSetByFlag := pflag.CommandLine.Changed("log-file")
 	_, logFileIsSetByEnv := os.LookupEnv(EnvPrefix + "_LOG")
 
+	var logVal string
 	if !logFileIsSetByEnv && !logFileIsSetByFlag {
 		log.SetOutput(io.Discard)
 	} else {
@@ -128,6 +128,11 @@ func parseEnvAndFlags() (Config, error) {
 		}
 	}
 
+	printLogDebug(os.Stderr, "loaded env vars: %+v", envvars)
+	pflag.Visit(func(f *pflag.Flag) {
+		printLogDebug(os.Stderr, "flag set: %+v", f)
+	})
+
 	if envvars.IntentCmd != "" && envvars.EnvReference != "" {
 		printLogWarn(os.Stderr, "both %s and %s environment variables are set", EnvPrefix+"_CMD")
 	}
@@ -137,9 +142,9 @@ func parseEnvAndFlags() (Config, error) {
 		printLogDebug(os.Stderr, "intent command loaded from $%s_CMD\n", EnvPrefix)
 	}
 
-	if cmd == "" && envvars.EnvReference != "" {
-		cmd = os.Getenv(envvars.EnvReference)
-		printLogDebug(os.Stderr, "intent command loaded from $%s\n", envvars.EnvReference)
+	if cmd == "" && flagEnvReference != "" {
+		cmd = os.Getenv(flagEnvReference)
+		printLogDebug(os.Stderr, "intent command loaded from: $%s", flagEnvReference)
 	}
 
 	if len(cmdOptions) > 0 {
@@ -151,10 +156,7 @@ func parseEnvAndFlags() (Config, error) {
 		printLogDebug(os.Stderr, "intent command loaded from arguments\n")
 	}
 
-	shellMode := false
-	if cmd == "" {
-		shellMode = true
-	}
+	shellMode := cmd == ""
 
 	if cmd != "" {
 		if err := checkCmdSafety(cmd, logVal); err != nil {
@@ -208,5 +210,6 @@ func parseFlags(envvars envVars) []string {
 
 	args, cmdOptions := splitAtEndOfArgs(os.Args)
 	pflag.CommandLine.Parse(args)
+
 	return cmdOptions
 }

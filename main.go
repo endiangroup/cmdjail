@@ -158,9 +158,11 @@ func getJailFile(conf Config) JailFile {
 	var jailFileReader io.Reader
 	var err error
 
-	if isStdinSet() && !conf.Shell {
+	if conf.JailFile == "-" && !conf.Shell {
+		printLogDebug(os.Stdout, "reading jail file from: <stdin>")
 		jailFileReader = os.Stdin
 	} else {
+		printLogDebug(os.Stdout, "reading jail file from: %s", conf.JailFile)
 		jailFileReader, err = os.Open(conf.JailFile)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
@@ -185,18 +187,6 @@ func getJailFile(conf Config) JailFile {
 	return jailFile
 }
 
-func isStdinSet() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var hasStdin bool
-	if fi.Mode()&os.ModeNamedPipe != 0 {
-		hasStdin = true
-	}
-	return hasStdin
-}
 
 func runCmd(c string) int {
 	cmd := exec.Command("bash", "-c", c)

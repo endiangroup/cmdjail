@@ -146,6 +146,40 @@ Describe 'cmdjail.sh'
     End
   End
 
+  Describe 'environment variables'
+    It 'loads intent cmd from CMDJAIL_CMD env var'
+      cmdjail() { 
+        echo "+ 'ls -al" > bin/.cmd.jail
+        CMDJAIL_CMD="ls -al" bin/cmdjail; 
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should include "total"
+    End
+    It 'loads intent cmd from CMDJAIL_ENV_REFERENCE env var'
+      cmdjail() { 
+        echo "+ 'ls -al" > bin/.cmd.jail
+        CMD="ls -al" CMDJAIL_ENV_REFERENCE=CMD bin/cmdjail; 
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should include "total"
+    End
+  End
+
+  It 'reads jail file from stdin when set to "-"'
+    cmdjail() { 
+      bin/cmdjail -j "-" -- "ls -l"; 
+    }
+    Data
+    #|+ 'ls -l
+    End
+
+    When run cmdjail
+    The status should equal 0
+    The stdout should include "total"
+  End
+
   Describe 'balcklist only'
     It 'exits 77 and logs an attempt to run a literal blacklisted intent cmd'
       cmdjail() { 
