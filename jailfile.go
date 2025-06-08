@@ -115,19 +115,22 @@ func (r RegexMatcher) Matches(intentCmd string) (bool, error) {
 
 type CmdMatcher struct {
 	matcher
-	cmd string
+	cmd      string
+	shellCmd []string
 }
 
-func NewCmdMatcher(m matcher, c string) CmdMatcher {
+func NewCmdMatcher(m matcher, c string, shellCmd []string) CmdMatcher {
 	return CmdMatcher{
-		matcher: m,
-		cmd:     c,
+		matcher:  m,
+		cmd:      c,
+		shellCmd: shellCmd,
 	}
 }
 
 func (c CmdMatcher) Matches(intentCmd string) (bool, error) {
 	printLogDebug(os.Stdout, "CmdMatcher: executing '%s' with stdin: %s", c.cmd, intentCmd)
-	cmd := exec.Command("bash", "-c", c.cmd)
+
+	cmd := exec.Command(c.shellCmd[0], append(c.shellCmd[1:], c.cmd)...)
 	w, err := cmd.StdinPipe()
 	if err != nil {
 		return false, err

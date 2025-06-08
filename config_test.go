@@ -30,6 +30,8 @@ func TestParseEnvAndFlags(t *testing.T) {
 		jailfile := "/tmp/.cmd.jail"
 		os.Setenv(EnvPrefix+"_JAILFILE", jailfile)
 		os.Setenv(EnvPrefix+"_VERBOSE", "true")
+		shellCmd := "sh -c"
+		os.Setenv(EnvPrefix+"_SHELL_CMD", shellCmd)
 
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)
@@ -38,6 +40,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 		assert.Equal(t, log, c.Log)
 		assert.Equal(t, jailfile, c.JailFile)
 		assert.Equal(t, true, c.Verbose)
+		assert.Equal(t, []string{"sh", "-c"}, c.ShellCmd)
 	})
 
 	t.Run("Returns config with command set from EnvReference", func(t *testing.T) {
@@ -53,15 +56,17 @@ func TestParseEnvAndFlags(t *testing.T) {
 	})
 
 	t.Run("Flag overrides environment variable", func(t *testing.T) {
-		setup("--jail-file", "/flag/path/.cmd.jail")
+		setup("--jail-file", "/flag/path/.cmd.jail", "--shell-cmd", "zsh -c")
 		os.Setenv(EnvPrefix+"_JAILFILE", "/env/path/.cmd.jail")
+		os.Setenv(EnvPrefix+"_SHELL_CMD", "bash -c")
 
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)
 		assert.Equal(t, "/flag/path/.cmd.jail", c.JailFile)
+		assert.Equal(t, []string{"zsh", "-c"}, c.ShellCmd)
 	})
 
-	t.Run("Sets default jail file path relative to executable", func(t *testing.T) {
+	t.Run("Sets default jail file path and shell command", func(t *testing.T) {
 		setup()
 
 		c, err := parseEnvAndFlags()
@@ -72,6 +77,7 @@ func TestParseEnvAndFlags(t *testing.T) {
 		expectedPath := filepath.Join(exPath, JailFilename)
 
 		assert.Equal(t, expectedPath, c.JailFile)
+		assert.Equal(t, []string{"bash", "-c"}, c.ShellCmd)
 	})
 
 	t.Run("Returns error when command set after -- isn't a single argument", func(t *testing.T) {

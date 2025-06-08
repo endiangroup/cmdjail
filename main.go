@@ -57,7 +57,7 @@ func main() {
 		os.Exit(recordIntentCmd(conf))
 	}
 
-	_, exitCode := evaluateAndRun(conf.IntentCmd, getJailFile(conf))
+	_, exitCode := evaluateAndRun(conf.IntentCmd, getJailFile(conf), conf.ShellCmd)
 	os.Exit(exitCode)
 }
 
@@ -75,7 +75,7 @@ func recordIntentCmd(conf Config) int {
 	}
 	printLogDebug(os.Stdout, "appended rule to %s: + '%s'", conf.RecordFile, conf.IntentCmd)
 
-	return runCmd(conf.IntentCmd)
+	return runCmd(conf.ShellCmd, conf.IntentCmd)
 }
 
 func runShell(conf Config, jailFile JailFile) int {
@@ -106,11 +106,11 @@ func runShell(conf Config, jailFile JailFile) int {
 			if line == "exit" || line == "quit" {
 				return 0
 			} else {
-				runCmd(line)
+				runCmd(conf.ShellCmd, line)
 			}
 
 		} else {
-			cmdWasAllowed, _ := evaluateAndRun(line, jailFile)
+			cmdWasAllowed, _ := evaluateAndRun(line, jailFile, conf.ShellCmd)
 
 			if cmdWasAllowed && (line == "exit" || line == "quit") {
 				return 0
@@ -165,7 +165,7 @@ func evaluateCmd(intentCmd string, jailFile JailFile) CheckResult {
 	return CheckResult{Cmd: intentCmd, Allowed: false, Reason: "Implicitly blocked"}
 }
 
-func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
+func evaluateAndRun(intentCmd string, jailFile JailFile, shellCmd []string) (bool, int) {
 	result := evaluateCmd(intentCmd, jailFile)
 
 	if !result.Allowed {
@@ -180,7 +180,7 @@ func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
 	if result.Matcher != nil {
 		printLogDebug(os.Stdout, "command explicitly allowed, executing")
 	}
-	return true, runCmd(intentCmd)
+	return true, runCmd(shellCmd, intentCmd)
 }
 
 func runCheckMode(conf Config, jailFile JailFile) int {
@@ -306,8 +306,8 @@ func getJailFile(conf Config) JailFile {
 	return jailFile
 }
 
-func runCmd(c string) int {
-	cmd := exec.Command("bash", "-c", c)
+func runCmd(shellCmd []string, c string) int {
+	cmd := exec.Command(shellCmd[0], append(shellCmd[1:], c)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

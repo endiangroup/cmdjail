@@ -41,6 +41,9 @@ var (
 	flagCheckDesc           string = "Validate jailfile syntax."
 	flagCheckIntentCmds     string
 	flagCheckIntentCmdsDesc string = "Path to a file with commands to test (use '-' for stdin)."
+
+	flagShellCmd     string
+	flagShellCmdDesc string = "Shell command to execute intent commands with."
 )
 
 var (
@@ -62,6 +65,7 @@ type envVars struct {
 	JailFile     string
 	RecordFile   string
 	Verbose      bool
+	ShellCmd     string `envconfig:"CMDJAIL_SHELL_CMD"`
 }
 
 func defaultEnvVars() (envVars, error) {
@@ -73,6 +77,7 @@ func defaultEnvVars() (envVars, error) {
 
 	return envVars{
 		JailFile: filepath.Join(exPath, JailFilename),
+		ShellCmd: "bash -c",
 	}, nil
 }
 
@@ -86,6 +91,7 @@ type Config struct {
 	Version             bool
 	CheckMode           bool
 	CheckIntentCmdsFile string
+	ShellCmd            []string
 }
 
 var NoConfig = Config{}
@@ -115,6 +121,9 @@ Flags:
                                  (Env: CMDJAIL_ENV_REFERENCE)
   -r, --record-file <path>       `+flagRecordFileDesc+`
                                  (Env: CMDJAIL_RECORDFILE)
+  -s, --shell-cmd <cmd>          `+flagShellCmdDesc+`
+                                 (Default: "bash -c")
+                                 (Env: CMDJAIL_SHELL_CMD)
   -c, --check                    `+flagCheckDesc+`
       --check-intent-cmds <path> `+flagCheckIntentCmdsDesc+`
   -v, --verbose                  `+flagVerboseDesc+`
@@ -135,6 +144,7 @@ func parseFlags(envvars envVars) []string {
 	pflag.StringVarP(&flagRecordFile, "record-file", "r", envvars.RecordFile, flagRecordFileDesc)
 	pflag.BoolVarP(&flagCheck, "check", "c", false, flagCheckDesc)
 	pflag.StringVar(&flagCheckIntentCmds, "check-intent-cmds", "", flagCheckIntentCmdsDesc)
+	pflag.StringVarP(&flagShellCmd, "shell-cmd", "s", envvars.ShellCmd, flagShellCmdDesc)
 
 	args, cmdOptions := splitAtEndOfArgs(os.Args)
 	pflag.CommandLine.Parse(args)
@@ -237,6 +247,11 @@ func parseEnvAndFlags() (Config, error) {
 		}
 	}
 
+	shellCmd := strings.Fields(flagShellCmd)
+	if len(shellCmd) == 0 {
+		shellCmd = []string{"bash", "-c"} // Fallback
+	}
+
 	return Config{
 		IntentCmd:           cmd,
 		Log:                 flagLogFile,
@@ -247,6 +262,7 @@ func parseEnvAndFlags() (Config, error) {
 		Version:             flagVersion,
 		CheckMode:           checkMode,
 		CheckIntentCmdsFile: flagCheckIntentCmds,
+		ShellCmd:            shellCmd,
 	}, nil
 }
 

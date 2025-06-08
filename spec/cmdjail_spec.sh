@@ -426,4 +426,16 @@ Describe 'cmdjail.sh'
       The stdout should include "Check complete. 1/2 commands would be blocked."
     End
   End
+
+  Describe 'custom shell'
+    It 'uses the shell specified by --shell-cmd'
+      cmdjail() {
+        echo "+ 'echo hello" > bin/.cmd.jail
+        bin/cmdjail -s "sh -c" -- 'echo hello'
+      }
+      When run cmdjail
+      The status should equal 0
+      The stdout should equal "hello"
+    End
+  End
 End
