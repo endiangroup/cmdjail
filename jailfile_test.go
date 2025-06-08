@@ -69,6 +69,14 @@ func TestItFailsToParseTheJailFile(t *testing.T) {
 			assert.Equal(t, expErr, err)
 		}
 	})
+	t.Run("invalid regex", func(t *testing.T) {
+		b := bytes.NewBuffer([]byte("+ r'['"))
+		_, err := parseJailFile(Config{JailFile: "/tmp/.cmd.jail"}, b)
+
+		assert.Error(t, err)
+		assert.IsType(t, JailFileParserErr{}, err)
+		assert.Contains(t, err.Error(), "error parsing regexp")
+	})
 }
 
 func TestItSuccesfullyParsesTheJailFile(t *testing.T) {
