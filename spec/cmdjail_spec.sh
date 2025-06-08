@@ -88,6 +88,14 @@ Describe 'cmdjail.sh'
       The line 1 of stderr should equal "[error] attempting to manipulate cmdjail log. Aborted"
       The contents of file ".some.log" should include "[error] attempting to manipulate cmdjail log. Aborted"
     End
+    It 'exits 1 when both jailfile and check-intent-cmds are stdin'
+      cmdjail() {
+        bin/cmdjail -j - --check-intent-cmds -
+      }
+      When run cmdjail
+      The status should equal 1
+      The line 1 of stderr should equal "[error] jail file and check commands cannot both be read from stdin"
+    End
   End
 
   Describe 'whitelist only'

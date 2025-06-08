@@ -122,4 +122,13 @@ func TestParseEnvAndFlags(t *testing.T) {
 		assert.False(t, c.Shell)
 		assert.Empty(t, c.IntentCmd)
 	})
+
+	t.Run("Returns error when both jailfile and check-intent-cmds are stdin", func(t *testing.T) {
+		pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+		os.Args = []string{os.Args[0], "-j", "-", "--check-intent-cmds", "-"}
+		os.Clearenv()
+
+		_, err := parseEnvAndFlags()
+		assert.Equal(t, ErrJailFileAndCheckCmdsFromStdin, err)
+	})
 }

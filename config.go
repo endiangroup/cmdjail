@@ -51,7 +51,8 @@ var (
 	// TODO: promote to type and capture cmd to log
 	ErrJailBinaryManipulationAttempt = fmt.Errorf("attempting to manipulate: %s. Aborted", filepath.Base(os.Args[0]))
 	// TODO: promote to type and capture cmd to log
-	ErrJailLogManipulationAttempt = errors.New("attempting to manipulate cmdjail log. Aborted")
+	ErrJailLogManipulationAttempt    = errors.New("attempting to manipulate cmdjail log. Aborted")
+	ErrJailFileAndCheckCmdsFromStdin = errors.New("jail file and check commands cannot both be read from stdin")
 )
 
 type envVars struct {
@@ -162,6 +163,10 @@ func parseEnvAndFlags() (Config, error) {
 	}
 
 	cmdOptions := parseFlags(envvars)
+
+	if flagJailFile == "-" && flagCheckIntentCmds == "-" {
+		return NoConfig, ErrJailFileAndCheckCmdsFromStdin
+	}
 
 	if flagVerbose {
 		debug = true
