@@ -103,9 +103,9 @@ Flags
 | Flag            | Shorthand | Environment Variable  | Description                                                                                                                                                                           |
 | --------------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | --jail-file     | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. When set to "-" it reads from stdin.                                                                |
-| --log-file      | -l        | CMDJAIL_LOG           | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                                                                                          |
+| --log-file      | -l        | CMDJAIL_LOGFILE       | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                                                                                          |
 | --env-reference | -e        | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                                                                                           |
-| --record        | -r        | CMDJAIL_RECORDFILE    | Enables recording mode. When this flag is used, no jail file is loaded and no rules are checked. All commands are executed and appended to the specified file as literal allow rules. |
+| --record-file   | -r        | CMDJAIL_RECORDFILE    | Enables recording mode. When this flag is used, no jail file is loaded and no rules are checked. All commands are executed and appended to the specified file as literal allow rules. |
 | --verbose       | -v        | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                                                                                                 |
 | --version       |           |                       | Print version information and exit.                                                                                                                                                   |
 
@@ -253,7 +253,7 @@ $ cmdjail -- 'cat /etc/passwd'
 
 ### Recording Mode
 
-`cmdjail` includes a recording mode that simplifies the process of building a new jail file. When you run `cmdjail` with the `--record <filepath>` flag, it will:
+`cmdjail` includes a recording mode that simplifies the process of building a new jail file. When you run `cmdjail` with the `--record-file <filepath>` flag, it will:
 
 1.  Execute the intent command immediately, bypassing all rule checks.
 2.  Append the executed command to the specified `<filepath>` as a literal allow rule (`+ '...'`).
@@ -264,10 +264,10 @@ This is useful for populating a new `.cmd.jail` file by performing the allowed a
 
 ```sh
 # This will run 'git status' and add "+ 'git status" to ./my-new.jail
-cmdjail --record ./my-new.jail -- 'git status'
+cmdjail --record-file ./my-new.jail -- 'git status'
 
 # This will run 'ls -l' and add "+ 'ls -l" to the same file
-cmdjail --record ./my-new.jail -- 'ls -l'
+cmdjail --record-file ./my-new.jail -- 'ls -l'
 ```
 
 > **Warning:** Recording mode executes commands without validation. Only use it in a trusted environment to build your initial ruleset.
@@ -303,7 +303,7 @@ You can also combine shell mode with the `--record` flag to automatically append
 
 ```bash
 # Start an interactive shell that records all commands to my.jail
-$ cmdjail --record ./my.jail
+$ cmdjail --record-file ./my.jail
 [warn] cmdjail shell mode recording to: ./my.jail
 cmdjail> whoami
 user

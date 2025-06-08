@@ -19,12 +19,23 @@ const (
 )
 
 var (
-	flagLog          string
-	flagEnvReference string
+	flagLogFile     string
+	flagLogFileDesc string = "Path for logging. Set to \"\" for syslog. If unset, logging is disabled."
+
+	flagEnvReference     string
+	flagEnvReferenceDesc string = "Environment variable with the intent command (e.g., SSH_ORIGINAL_COMMAND)."
+
 	flagJailFile     string
-	flagVerbose      bool
-	flagRecordFile   string
-	flagVersion      bool
+	flagJailFileDesc string = "Path to the jail file. Use - to read from stdin."
+
+	flagVerbose     bool
+	flagVerboseDesc string = "Enable verbose logging for debugging."
+
+	flagRecordFile     string
+	flagRecordFileDesc string = "Enable record mode. Executes command and appends it as an allow rule to the file."
+
+	flagVersion     bool
+	flagVersionDesc string = "Print version information and exit."
 )
 
 var (
@@ -40,7 +51,7 @@ var (
 
 type envVars struct {
 	IntentCmd    string `envconfig:"CMDJAIL_CMD"`
-	Log          string
+	LogFile      string
 	EnvReference string `envconfig:"CMDJAIL_ENV_REFERENCE"`
 	JailFile     string
 	RecordFile   string
@@ -73,6 +84,50 @@ var NoConfig = Config{}
 
 func init() {
 	pflag.ErrHelp = errors.New("")
+	pflag.Usage = func() {
+		printMsg(os.Stderr, `cmdjail: A flexible, rule-based command filtering proxy.
+
+Acts as an intermediary for executing shell commands. It evaluates a command
+against a set of rules in a "jail file" and decides whether to execute or
+block it. This is useful for restricting user actions in controlled environments.
+
+Usage:
+  cmdjail [flags] -- 'command to execute'
+  cmdjail [flags]
+
+When no command is provided, cmdjail starts an interactive shell.
+
+Flags:
+  -j, --jail-file <path>      `+flagJailFileDesc+`
+                              (Default: .cmd.jail in binary's directory)
+                              (Env: CMDJAIL_JAILFILE)
+  -l, --log-file <path>       `+flagLogFileDesc+`
+                              (Env: CMDJAIL_LOGFILE)
+  -e, --env-reference <var>   `+flagEnvReferenceDesc+`
+                              (Env: CMDJAIL_ENV_REFERENCE)
+  -r, --record-file <path>    `+flagRecordFileDesc+`
+                              (Env: CMDJAIL_RECORDFILE)
+  -v, --verbose               `+flagVerboseDesc+`
+                              (Env: CMDJAIL_VERBOSE)
+      --version               `+flagVersionDesc+`
+  -h, --help                  Show this help message.
+
+The intent command can also be set directly via the CMDJAIL_CMD environment variable.`)
+	}
+}
+
+func parseFlags(envvars envVars) []string {
+	pflag.BoolVar(&flagVersion, "version", false, flagVersionDesc)
+	pflag.BoolVarP(&flagVerbose, "verbose", "v", envvars.Verbose, flagVerboseDesc)
+	pflag.StringVarP(&flagLogFile, "log-file", "l", envvars.LogFile, flagLogFileDesc)
+	pflag.StringVarP(&flagEnvReference, "env-reference", "e", envvars.EnvReference, flagEnvReferenceDesc)
+	pflag.StringVarP(&flagJailFile, "jail-file", "j", envvars.JailFile, flagJailFileDesc)
+	pflag.StringVarP(&flagRecordFile, "record-file", "r", envvars.RecordFile, flagRecordFileDesc)
+
+	args, cmdOptions := splitAtEndOfArgs(os.Args)
+	pflag.CommandLine.Parse(args)
+
+	return cmdOptions
 }
 
 func parseEnvVars() (envVars, error) {
@@ -103,15 +158,15 @@ func parseEnvAndFlags() (Config, error) {
 
 	// Configure logging based on flag and environment variable precedence.
 	logFileIsSetByFlag := pflag.CommandLine.Changed("log-file")
-	_, logFileIsSetByEnv := os.LookupEnv(EnvPrefix + "_LOG")
+	_, logFileIsSetByEnv := os.LookupEnv(EnvPrefix + "_LOGFILE")
 
 	var logVal string
 	if !logFileIsSetByEnv && !logFileIsSetByFlag {
 		log.SetOutput(io.Discard)
 	} else {
-		logVal = envvars.Log
+		logVal = envvars.LogFile
 		if logFileIsSetByFlag {
-			logVal = flagLog
+			logVal = flagLogFile
 		}
 
 		if logVal == "" {
@@ -167,7 +222,7 @@ func parseEnvAndFlags() (Config, error) {
 
 	return Config{
 		IntentCmd:  cmd,
-		Log:        flagLog,
+		Log:        flagLogFile,
 		JailFile:   flagJailFile,
 		Verbose:    flagVerbose,
 		RecordFile: flagRecordFile,
@@ -200,18 +255,4 @@ func splitAtEndOfArgs(args []string) ([]string, []string) {
 		}
 	}
 	return args, nil
-}
-
-func parseFlags(envvars envVars) []string {
-	pflag.BoolVar(&flagVersion, "version", false, "print version info and exit")
-	pflag.BoolVarP(&flagVerbose, "verbose", "v", envvars.Verbose, "enable verbose mode")
-	pflag.StringVarP(&flagLog, "log-file", "l", envvars.Log, "log file location, when set to \"\" logs to syslog. If unset logging is disabled")
-	pflag.StringVarP(&flagEnvReference, "env-reference", "e", envvars.EnvReference, "name of an environment variable that holds the cmd to execute e.g. SSH_ORIGINAL_COMMAND")
-	pflag.StringVarP(&flagJailFile, "jail-file", "j", envvars.JailFile, "jail file location, when set to '-' it reads from stdin")
-	pflag.StringVarP(&flagRecordFile, "record", "r", envvars.RecordFile, "transparently run the intent cmd and append it to the specified file as a literal allow rule")
-
-	args, cmdOptions := splitAtEndOfArgs(os.Args)
-	pflag.CommandLine.Parse(args)
-
-	return cmdOptions
 }
