@@ -8,6 +8,7 @@
 GO            ?= go
 GOOS          ?= $(shell go env GOOS)
 GOARCH        ?= $(shell go env GOARCH)
+FUZZ_TIME     ?= 30s
 
 # Versioning
 GIT_VERSION   ?= $(shell git describe --tags --always --dirty)
@@ -62,8 +63,18 @@ test-units:
 test-features: bin/cmdjail
 	@shellspec $(SHELLSPEC_VERBOSE_CONTROL)
 
+.PHONY: test-fuzz test-fuzz-parser test-fuzz-evaluator
+test-fuzz: test-fuzz-parser test-fuzz-evaluator ## Run all fuzz tests for a short duration (default: 10s each)
+
+test-fuzz-parser: ## Run fuzz tests for the jailfile parser
+	@echo "Fuzzing jailfile parser for $(FUZZ_TIME)..."
+	@$(GO) test $(TEST_VERBOSE_CONTROL) $(TEST_CACHE_CONTROL) -fuzz=FuzzParseJailFile -fuzztime=$(FUZZ_TIME) .
+
+test-fuzz-evaluator: ## Run fuzz tests for the command evaluator
+	@echo "Fuzzing command evaluator for $(FUZZ_TIME)..."
+	@$(GO) test $(TEST_VERBOSE_CONTROL) $(TEST_CACHE_CONTROL) -fuzz=FuzzEvaluateCmd -fuzztime=$(FUZZ_TIME) .
+
 .PHONY: clean
 clean:
 	rm -rf bin
 	rm -rf build
-
