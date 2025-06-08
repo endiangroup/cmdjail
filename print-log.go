@@ -21,7 +21,7 @@ func setLoggerToSyslog() error {
 }
 
 func setLoggerToFile(path string) error {
-	logFd, err := os.Create(path)
+	logFd, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return fmt.Errorf("unable to create log file %s: %w", path, err)
 	}
@@ -31,8 +31,8 @@ func setLoggerToFile(path string) error {
 }
 
 func printLog(printTo io.Writer, msg string, args ...any) {
-	fmt.Fprintf(printTo, msg, args...)
-	log.Printf(msg, args...)
+	fmt.Fprintf(printTo, msg+"\n", args...)
+	log.Printf(msg+"\n", args...)
 }
 
 func printErr(printTo io.Writer, msg string, args ...any) {

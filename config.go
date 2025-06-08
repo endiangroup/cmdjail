@@ -118,13 +118,13 @@ func parseEnvAndFlags() (Config, error) {
 			if err := setLoggerToSyslog(); err != nil {
 				return NoConfig, fmt.Errorf("configuring syslog logger: %w", err)
 			}
-			printLogDebug(os.Stdout, "logging to syslog\n")
+			printLogDebug(os.Stdout, "logging to syslog")
 		} else {
 			// A non-empty value is a file path.
 			if err := setLoggerToFile(logVal); err != nil {
 				return NoConfig, fmt.Errorf("configuring file logger: %w", err)
 			}
-			printLogDebug(os.Stdout, "logging to: %s\n", logVal)
+			printLogDebug(os.Stdout, "logging to: %s", logVal)
 		}
 	}
 
@@ -139,7 +139,7 @@ func parseEnvAndFlags() (Config, error) {
 
 	cmd := envvars.IntentCmd
 	if cmd != "" {
-		printLogDebug(os.Stderr, "intent command loaded from $%s_CMD\n", EnvPrefix)
+		printLogDebug(os.Stderr, "intent command loaded from: $%s_CMD", EnvPrefix)
 	}
 
 	if cmd == "" && flagEnvReference != "" {
@@ -153,7 +153,7 @@ func parseEnvAndFlags() (Config, error) {
 		}
 
 		cmd = cmdOptions[0]
-		printLogDebug(os.Stderr, "intent command loaded from arguments\n")
+		printLogDebug(os.Stderr, "intent command loaded from arguments")
 	}
 
 	shellMode := cmd == ""

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,7 +13,7 @@ import (
 
 func main() {
 	conf := getConfig()
-	printLogDebug(os.Stdout, "config loaded: %+v\n", conf)
+	printLogDebug(os.Stdout, "config loaded: %+v", conf)
 
 	if conf.Shell {
 		var jailFile JailFile
@@ -38,12 +37,12 @@ func main() {
 }
 
 func recordIntentCmd(conf Config) int {
-	printLogDebug(os.Stdout, "record mode enabled, recording to: %s\n", conf.RecordFile)
+	printLogDebug(os.Stdout, "record mode enabled, recording to: %s", conf.RecordFile)
 	if err := appendRuleToFile(conf.RecordFile, conf.IntentCmd); err != nil {
 		printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
 		return 1
 	}
-	printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, conf.IntentCmd)
+	printLogDebug(os.Stdout, "appended rule to %s: + '%s'", conf.RecordFile, conf.IntentCmd)
 
 	return runCmd(conf.IntentCmd)
 }
@@ -61,7 +60,7 @@ func runShell(conf Config, jailFile JailFile) int {
 		}
 
 		if err := checkCmdSafety(line, conf.Log); err != nil {
-			printLogErr(os.Stderr, "%s\n", err.Error())
+			printLogErr(os.Stderr, "%s", err.Error())
 			fmt.Print("cmdjail> ")
 			continue
 		}
@@ -70,7 +69,7 @@ func runShell(conf Config, jailFile JailFile) int {
 			if err := appendRuleToFile(conf.RecordFile, line); err != nil {
 				printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
 			} else {
-				printLogDebug(os.Stdout, "appended rule to %s: + '%s'\n", conf.RecordFile, line)
+				printLogDebug(os.Stdout, "appended rule to %s: + '%s'", conf.RecordFile, line)
 			}
 
 			if line == "exit" || line == "quit" {
@@ -100,11 +99,11 @@ func runShell(conf Config, jailFile JailFile) int {
 }
 
 func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
-	printLogDebug(os.Stdout, "evaluating intent command: %s\n", intentCmd)
+	printLogDebug(os.Stdout, "evaluating intent command: %s", intentCmd)
 
 	// Check blacklisted commands first
 	for i, deny := range jailFile.Deny {
-		printLogDebug(os.Stdout, "checking deny rule #%d: %s\n", i+1, deny.Raw())
+		printLogDebug(os.Stdout, "checking deny rule #%d: %s", i+1, deny.Raw())
 		match, err := deny.Matches(intentCmd)
 		if err != nil {
 			logErr("running matcher: %s", err.Error())
@@ -122,14 +121,14 @@ func evaluateAndRun(intentCmd string, jailFile JailFile) (bool, int) {
 
 	// Check whitelisted commands
 	for i, allow := range jailFile.Allow {
-		printLogDebug(os.Stdout, "checking allow rule #%d: %s\n", i+1, allow.Raw())
+		printLogDebug(os.Stdout, "checking allow rule #%d: %s", i+1, allow.Raw())
 		match, err := allow.Matches(intentCmd)
 		if err != nil {
 			logErr("running matcher: %s", err.Error())
 			return false, 1
 		}
 		if match {
-			printLogDebug(os.Stdout, "command explicitly allowed, executing\n")
+			printLogDebug(os.Stdout, "command explicitly allowed, executing")
 			return true, runCmd(intentCmd)
 		}
 	}

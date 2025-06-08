@@ -81,7 +81,7 @@ func NewLiteralMatcher(m matcher, s string) LiteralMatcher {
 }
 
 func (m LiteralMatcher) Matches(intentCmd string) (bool, error) {
-	printLogDebug(os.Stdout, "LiteralMatcher: comparing intent '%s' with rule string '%s'\n", intentCmd, m.str)
+	printLogDebug(os.Stdout, "LiteralMatcher: comparing intent '%s' with rule string '%s'", intentCmd, m.str)
 	if m.str == intentCmd {
 		return true, nil
 	}
@@ -109,7 +109,7 @@ func NewRegexMatcher(m matcher, re string) (RegexMatcher, error) {
 }
 
 func (r RegexMatcher) Matches(intentCmd string) (bool, error) {
-	printLogDebug(os.Stdout, "RegexMatcher: matching intent '%s' against pattern '%s'\n", intentCmd, r.re.String())
+	printLogDebug(os.Stdout, "RegexMatcher: matching intent '%s' against pattern '%s'", intentCmd, r.re.String())
 	return r.re.MatchString(intentCmd), nil
 }
 
@@ -126,7 +126,7 @@ func NewCmdMatcher(m matcher, c string) CmdMatcher {
 }
 
 func (c CmdMatcher) Matches(intentCmd string) (bool, error) {
-	printLogDebug(os.Stdout, "CmdMatcher: executing '%s' with stdin: %s\n", c.cmd, intentCmd)
+	printLogDebug(os.Stdout, "CmdMatcher: executing '%s' with stdin: %s", c.cmd, intentCmd)
 	cmd := exec.Command("bash", "-c", c.cmd)
 	w, err := cmd.StdinPipe()
 	if err != nil {
@@ -145,7 +145,7 @@ func (c CmdMatcher) Matches(intentCmd string) (bool, error) {
 	}
 
 	if exerr, ok := err.(*exec.ExitError); ok {
-		printLogDebug(os.Stdout, "%s:%d: matcher '%s:\n%s", c.jailFile, c.lineNumber, c.raw, exerr.Stderr)
+		printLogDebug(os.Stdout, "%s:%d: matcher '%s:%s", c.jailFile, c.lineNumber, c.raw, exerr.Stderr)
 		return false, nil
 	}
 	printLogErr(os.Stdout, "%s:%d: matcher '%s:%s", c.jailFile, c.lineNumber, c.raw, err.Error())
