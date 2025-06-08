@@ -102,11 +102,12 @@ Flags
 
 | Flag            | Shorthand | Environment Variable  | Description                                                                                                                                                                           |
 | --------------- | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| --jail-file     | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. Can also be piped to stdin.                                                                         |
+| --jail-file     | -j        | CMDJAIL_JAILFILE      | Path to the jail file. Defaults to .cmd.jail in the same directory as the binary. When set to "-" it reads from stdin.                                                                |
 | --log-file      | -l        | CMDJAIL_LOG           | Path to a log file. Setting flag to empty string `""` sets to syslog. Default is no logging.                                                                                          |
 | --env-reference | -e        | CMDJAIL_ENV_REFERENCE | Name of an environment variable containing the intent command (e.g., SSH_ORIGINAL_COMMAND).                                                                                           |
 | --record        | -r        | CMDJAIL_RECORDFILE    | Enables recording mode. When this flag is used, no jail file is loaded and no rules are checked. All commands are executed and appended to the specified file as literal allow rules. |
 | --verbose       | -v        | CMDJAIL_VERBOSE       | Enable verbose logging for debugging.                                                                                                                                                 |
+| --version       |           |                       | Print version information and exit.                                                                                                                                                   |
 
 ### Jail File Examples (.cmd.jail)
 

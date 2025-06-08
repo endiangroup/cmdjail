@@ -9,6 +9,12 @@ GO            ?= go
 GOOS          ?= $(shell go env GOOS)
 GOARCH        ?= $(shell go env GOARCH)
 
+# Versioning
+GIT_VERSION   ?= $(shell git describe --tags --always --dirty)
+GIT_COMMIT    ?= $(shell git rev-parse HEAD)
+BUILD_DATE    ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+LDFLAGS       := -ldflags="-X 'main.version=$(GIT_VERSION)' -X 'main.commit=$(GIT_COMMIT)' -X 'main.date=$(BUILD_DATE)'"
+
 # Use NOCACHE=1 to disable go test cache e.g.
 # 	$ NOCACHE=1 make test
 ifdef NOCACHE
@@ -36,7 +42,7 @@ help:
 
 bin/cmdjail: bin *.go
 	@mkdir -p bin
-	@$(GO) build $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o bin/cmdjail .
+	@$(GO) build $(LDFLAGS) $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o bin/cmdjail .
 
 #-- Building
 
@@ -44,7 +50,7 @@ bin/cmdjail: bin *.go
 build: ## Build binary for a specific platform (e.g., GOOS=linux GOARCH=arm64 make build)
 	@mkdir -p build
 	@echo "Building for $(GOOS)/$(GOARCH)..."
-	@GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o build/cmdjail-$(GOOS)-$(GOARCH) .
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build $(LDFLAGS) $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o build/cmdjail-$(GOOS)-$(GOARCH) .
 
 #-- Testing
 .PHONY: test test-units test-features

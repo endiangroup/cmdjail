@@ -66,6 +66,7 @@ type Config struct {
 	Verbose    bool
 	RecordFile string
 	Shell      bool
+	Version    bool
 }
 
 var NoConfig = Config{}
@@ -171,6 +172,7 @@ func parseEnvAndFlags() (Config, error) {
 		Verbose:    flagVerbose,
 		RecordFile: flagRecordFile,
 		Shell:      shellMode,
+		Version:    flagVersion,
 	}, nil
 }
 
@@ -201,11 +203,11 @@ func splitAtEndOfArgs(args []string) ([]string, []string) {
 }
 
 func parseFlags(envvars envVars) []string {
-	// pflag.BoolVar(&flagVersion, "version", conf.Verbose, "print version info")
+	pflag.BoolVar(&flagVersion, "version", false, "print version info and exit")
 	pflag.BoolVarP(&flagVerbose, "verbose", "v", envvars.Verbose, "enable verbose mode")
-	pflag.StringVarP(&flagLog, "log-file", "l", envvars.Log, "log file location e.g. /var/log/cmdjail.log. If set to \"\" logs to syslog. If unset logging is disabled.")
+	pflag.StringVarP(&flagLog, "log-file", "l", envvars.Log, "log file location, when set to \"\" logs to syslog. If unset logging is disabled")
 	pflag.StringVarP(&flagEnvReference, "env-reference", "e", envvars.EnvReference, "name of an environment variable that holds the cmd to execute e.g. SSH_ORIGINAL_COMMAND")
-	pflag.StringVarP(&flagJailFile, "jail-file", "j", envvars.JailFile, "jail file location, if not set checks stdin")
+	pflag.StringVarP(&flagJailFile, "jail-file", "j", envvars.JailFile, "jail file location, when set to '-' it reads from stdin")
 	pflag.StringVarP(&flagRecordFile, "record", "r", envvars.RecordFile, "transparently run the intent cmd and append it to the specified file as a literal allow rule")
 
 	args, cmdOptions := splitAtEndOfArgs(os.Args)

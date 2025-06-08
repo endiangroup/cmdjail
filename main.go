@@ -11,9 +11,20 @@ import (
 	"strings"
 )
 
+var (
+	version string
+	commit  string
+	date    string
+)
+
 func main() {
 	conf := getConfig()
 	printLogDebug(os.Stdout, "config loaded: %+v", conf)
+
+	if conf.Version {
+		printVersion()
+		os.Exit(0)
+	}
 
 	if conf.Shell {
 		var jailFile JailFile
@@ -34,6 +45,12 @@ func main() {
 
 	_, exitCode := evaluateAndRun(conf.IntentCmd, getJailFile(conf))
 	os.Exit(exitCode)
+}
+
+func printVersion() {
+	printMsg(os.Stderr, "version:%s", version)
+	printMsg(os.Stderr, "commit:\t%s", commit)
+	printMsg(os.Stderr, "built:\t%s", date)
 }
 
 func recordIntentCmd(conf Config) int {
@@ -185,7 +202,6 @@ func getJailFile(conf Config) JailFile {
 
 	return jailFile
 }
-
 
 func runCmd(c string) int {
 	cmd := exec.Command("bash", "-c", c)

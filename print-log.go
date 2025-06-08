@@ -30,21 +30,29 @@ func setLoggerToFile(path string) error {
 	return nil
 }
 
-func printLog(printTo io.Writer, msg string, args ...any) {
+func printMsg(printTo io.Writer, msg string, args ...any) {
 	fmt.Fprintf(printTo, msg+"\n", args...)
+}
+
+func logMsg(msg string, args ...any) {
 	log.Printf(msg+"\n", args...)
 }
 
+func printLog(printTo io.Writer, msg string, args ...any) {
+	printMsg(printTo, msg, args...)
+	logMsg(msg+"\n", args...)
+}
+
 func printErr(printTo io.Writer, msg string, args ...any) {
-	fmt.Fprintf(printTo, "[error] "+msg, args...)
+	printMsg(printTo, "[error] "+msg, args...)
 }
 
 func logErr(msg string, args ...any) {
-	log.Printf("[error] "+msg, args...)
+	logMsg("[error] "+msg, args...)
 }
 
 func logWarn(msg string, args ...any) {
-	log.Printf("[warn] "+msg, args...)
+	logMsg("[warn] "+msg, args...)
 }
 
 func printLogErr(printTo io.Writer, msg string, args ...any) {
