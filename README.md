@@ -1,5 +1,8 @@
 # cmdjail
 
+> **⚠️ Security Warning**
+> `cmdjail` relies on carefully crafted rules. If your rules are not strict enough (e.g., using a permissive regex like `r'^git status'`), an attacker may be able to bypass the jail and execute arbitrary commands. Please read the [Security Vulnerability Analysis](SECURITY.md) for more details.
+
 A flexible, rule-based cli command filtering proxy.
 
 `cmdjail` acts as an intermediary for executing shell commands. It evaluates a command string against a set of rules defined in a "jail file" and decides whether to execute or block it. This is particularly useful for restricting user actions in controlled environments, such as an `sshd` `ForceCommand` or a limited shell.
