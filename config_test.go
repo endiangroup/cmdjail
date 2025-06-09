@@ -24,14 +24,14 @@ func TestParseEnvAndFlags(t *testing.T) {
 	t.Run("Returns config from environment variables", func(t *testing.T) {
 		setup() // Reset flags and args
 		cmd := "cmd -s --long-flag -a=123 -a 123"
-		os.Setenv(EnvPrefix+"_CMD", cmd)
+		assert.NoError(t, os.Setenv(EnvPrefix+"_CMD", cmd))
 		log := "/tmp/cmdjail.log"
-		os.Setenv(EnvPrefix+"_LOGFILE", log)
+		assert.NoError(t, os.Setenv(EnvPrefix+"_LOGFILE", log))
 		jailfile := "/tmp/.cmd.jail"
-		os.Setenv(EnvPrefix+"_JAILFILE", jailfile)
-		os.Setenv(EnvPrefix+"_VERBOSE", "true")
+		assert.NoError(t, os.Setenv(EnvPrefix+"_JAILFILE", jailfile))
+		assert.NoError(t, os.Setenv(EnvPrefix+"_VERBOSE", "true"))
 		shellCmd := "sh -c"
-		os.Setenv(EnvPrefix+"_SHELL_CMD", shellCmd)
+		assert.NoError(t, os.Setenv(EnvPrefix+"_SHELL_CMD", shellCmd))
 
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)
@@ -46,8 +46,8 @@ func TestParseEnvAndFlags(t *testing.T) {
 	t.Run("Returns config with command set from EnvReference", func(t *testing.T) {
 		setup() // Reset flags and args
 		cmd := "cmd -s --long-flag -a=123 -a 123"
-		os.Setenv("CMD", cmd)
-		os.Setenv(EnvPrefix+"_ENV_REFERENCE", "CMD")
+		assert.NoError(t, os.Setenv("CMD", cmd))
+		assert.NoError(t, os.Setenv(EnvPrefix+"_ENV_REFERENCE", "CMD"))
 
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)
@@ -57,8 +57,8 @@ func TestParseEnvAndFlags(t *testing.T) {
 
 	t.Run("Flag overrides environment variable", func(t *testing.T) {
 		setup("--jail-file", "/flag/path/.cmd.jail", "--shell-cmd", "zsh -c")
-		os.Setenv(EnvPrefix+"_JAILFILE", "/env/path/.cmd.jail")
-		os.Setenv(EnvPrefix+"_SHELL_CMD", "bash -c")
+		assert.NoError(t, os.Setenv(EnvPrefix+"_JAILFILE", "/env/path/.cmd.jail"))
+		assert.NoError(t, os.Setenv(EnvPrefix+"_SHELL_CMD", "bash -c"))
 
 		c, err := parseEnvAndFlags()
 		assert.NoError(t, err)

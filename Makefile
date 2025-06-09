@@ -6,6 +6,7 @@
 ###############################################################################
 
 GO            ?= go
+GOLANGCI_LINT ?= golangci-lint
 GOOS          ?= $(shell go env GOOS)
 GOARCH        ?= $(shell go env GOARCH)
 FUZZ_TIME     ?= 30s
@@ -41,7 +42,7 @@ help:
 	| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[32m %-43s\033[0m %s\n", $$1, $$2}' \
 	| sed -e 's/\[32m #-- /[33m/'
 
-bin/cmdjail: bin *.go
+bin/cmdjail: *.go
 	@mkdir -p bin
 	@$(GO) build $(LDFLAGS) $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o bin/cmdjail .
 
@@ -52,6 +53,11 @@ build: ## Build binary for a specific platform (e.g., GOOS=linux GOARCH=arm64 ma
 	@mkdir -p build
 	@echo "Building for $(GOOS)/$(GOARCH)..."
 	@GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build $(LDFLAGS) $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o build/cmdjail-$(GOOS)-$(GOARCH) .
+
+#-- Linting
+.PHONY: lint
+lint: ## Run golangci-lint
+	@$(GOLANGCI_LINT) run $(LINT_VERBOSE_CONTROL) ./...
 
 #-- Testing
 .PHONY: test test-units test-features

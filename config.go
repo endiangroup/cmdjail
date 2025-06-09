@@ -135,7 +135,7 @@ The intent command can also be set directly via the CMDJAIL_CMD environment vari
 	}
 }
 
-func parseFlags(envvars envVars) []string {
+func parseFlags(envvars envVars) ([]string, error) {
 	pflag.BoolVar(&flagVersion, "version", false, flagVersionDesc)
 	pflag.BoolVarP(&flagVerbose, "verbose", "v", envvars.Verbose, flagVerboseDesc)
 	pflag.StringVarP(&flagLogFile, "log-file", "l", envvars.LogFile, flagLogFileDesc)
@@ -147,9 +147,11 @@ func parseFlags(envvars envVars) []string {
 	pflag.StringVarP(&flagShellCmd, "shell-cmd", "s", envvars.ShellCmd, flagShellCmdDesc)
 
 	args, cmdOptions := splitAtEndOfArgs(os.Args)
-	pflag.CommandLine.Parse(args)
+	if err := pflag.CommandLine.Parse(args); err != nil {
+		return nil, err
+	}
 
-	return cmdOptions
+	return cmdOptions, nil
 }
 
 func parseEnvVars() (envVars, error) {
@@ -231,7 +233,10 @@ func parseEnvAndFlags() (Config, error) {
 		return NoConfig, err
 	}
 
-	cmdOptions := parseFlags(envvars)
+	cmdOptions, err := parseFlags(envvars)
+	if err != nil {
+		return NoConfig, err
+	}
 
 	if flagJailFile == "-" && flagCheckIntentCmds == "-" {
 		return NoConfig, ErrJailFileAndCheckCmdsFromStdin

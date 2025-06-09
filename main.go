@@ -198,7 +198,11 @@ func loadCommandsForCheckMode(conf Config) (commands []string, source string, er
 				printLogErr(os.Stderr, "reading test file %s: %v", conf.CheckIntentCmdsFile, fileErr)
 				return nil, source, fileErr
 			}
-			defer file.Close()
+			defer func() {
+				if err := file.Close(); err != nil {
+					printLogErr(os.Stderr, "closing test commands file %s: %v", conf.CheckIntentCmdsFile, err)
+				}
+			}()
 			r = file
 		}
 		commands, err = readLines(r)
@@ -276,7 +280,11 @@ func getJailFile(conf Config) JailFile {
 	}
 	// If the reader is a file, ensure it's closed.
 	if closer, ok := jailFileReader.(io.Closer); ok && jailFileReader != os.Stdin {
-		defer closer.Close()
+		defer func() {
+			if err := closer.Close(); err != nil {
+				printLogErr(os.Stderr, "closing jailfile reader for %s: %v", conf.JailFile, err)
+			}
+		}()
 	}
 
 	jailFile, err := parseJailFile(conf, jailFileReader)
@@ -320,7 +328,11 @@ func appendRuleToFile(filepath, intentCmd string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			printLogErr(os.Stderr, "closing record file %s: %v", filepath, err)
+		}
+	}()
 
 	rule := fmt.Sprintf("+ '%s\n", intentCmd)
 	if _, err := f.WriteString(rule); err != nil {

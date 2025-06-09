@@ -120,7 +120,10 @@ func (c CmdMatcher) Matches(intentCmd string) (bool, error) {
 	if err = cmd.Start(); err != nil {
 		return false, err
 	}
-	w.Write([]byte(intentCmd))
+	if _, err = w.Write([]byte(intentCmd)); err != nil {
+		_ = w.Close() // Best effort close
+		return false, err
+	}
 	if err = w.Close(); err != nil {
 		return false, err
 	}
