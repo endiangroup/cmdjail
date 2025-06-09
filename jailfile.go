@@ -5,9 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
-	"regexp"
 	"strings"
 )
 
@@ -42,121 +39,6 @@ func (j *JailFileParserErr) Is(other error) bool {
 }
 
 var ErrEmptyJailFile = errors.New("empty jail file")
-
-type Matcher interface {
-	Matches(string) (bool, error)
-	Raw() string
-}
-
-type matcher struct {
-	raw        string
-	lineNumber int
-	jailFile   string
-}
-
-func (m matcher) Raw() string {
-	return m.raw
-}
-
-func newMatcher(raw, jailFile string, lineNumber int) matcher {
-	return matcher{
-		raw:        raw,
-		lineNumber: lineNumber,
-		jailFile:   jailFile,
-	}
-}
-
-type LiteralMatcher struct {
-	matcher
-	str string
-}
-
-func NewLiteralMatcher(m matcher, s string) LiteralMatcher {
-	s = strings.TrimPrefix(s, "'")
-
-	return LiteralMatcher{
-		matcher: m,
-		str:     s,
-	}
-}
-
-func (m LiteralMatcher) Matches(intentCmd string) (bool, error) {
-	printLogDebug(os.Stdout, "LiteralMatcher: comparing intent '%s' with rule string '%s'", intentCmd, m.str)
-	if m.str == intentCmd {
-		return true, nil
-	}
-
-	return false, nil
-}
-
-type RegexMatcher struct {
-	matcher
-	re *regexp.Regexp
-}
-
-func NewRegexMatcher(m matcher, re string) (RegexMatcher, error) {
-	re = strings.TrimPrefix(re, "r'")
-
-	r, err := regexp.Compile(re)
-	if err != nil {
-		return RegexMatcher{}, err
-	}
-
-	return RegexMatcher{
-		matcher: m,
-		re:      r,
-	}, nil
-}
-
-func (r RegexMatcher) Matches(intentCmd string) (bool, error) {
-	printLogDebug(os.Stdout, "RegexMatcher: matching intent '%s' against pattern '%s'", intentCmd, r.re.String())
-	return r.re.MatchString(intentCmd), nil
-}
-
-type CmdMatcher struct {
-	matcher
-	cmd      string
-	shellCmd []string
-}
-
-func NewCmdMatcher(m matcher, c string, shellCmd []string) CmdMatcher {
-	return CmdMatcher{
-		matcher:  m,
-		cmd:      c,
-		shellCmd: shellCmd,
-	}
-}
-
-func (c CmdMatcher) Matches(intentCmd string) (bool, error) {
-	printLogDebug(os.Stdout, "CmdMatcher: executing '%s' with stdin: %s", c.cmd, intentCmd)
-
-	cmd := exec.Command(c.shellCmd[0], append(c.shellCmd[1:], c.cmd)...)
-	w, err := cmd.StdinPipe()
-	if err != nil {
-		return false, err
-	}
-	if err = cmd.Start(); err != nil {
-		return false, err
-	}
-	w.Write([]byte(intentCmd))
-	if err = w.Close(); err != nil {
-		return false, err
-	}
-	err = cmd.Wait()
-	if err == nil {
-		return true, nil
-	}
-
-	if exerr, ok := err.(*exec.ExitError); ok {
-		if exerr.ExitCode() == 1 {
-			return false, nil
-		}
-
-		printLogErr(os.Stderr, "%s:%d: matcher '%s': %s\n%s", c.jailFile, c.lineNumber, c.raw, exerr.Error(), exerr.Stderr)
-	}
-
-	return false, err
-}
 
 type JailFile struct {
 	Allow []Matcher

@@ -166,6 +166,65 @@ func parseEnvVars() (envVars, error) {
 	return envvars, nil
 }
 
+// It returns the effective log file path (or "" for syslog/discard) and any error.
+func initializeLogging(envLogFile, cliLogFile string) (string, error) {
+	logFileIsSetByFlag := pflag.CommandLine.Changed("log-file")
+	_, logFileIsSetByEnv := os.LookupEnv(EnvPrefix + "_LOGFILE")
+
+	var effectiveLogPath string
+	if !logFileIsSetByEnv && !logFileIsSetByFlag {
+		log.SetOutput(io.Discard)
+		printLogDebug(os.Stdout, "logging disabled")
+	} else {
+		effectiveLogPath = envLogFile
+		if logFileIsSetByFlag {
+			effectiveLogPath = cliLogFile
+		}
+
+		if effectiveLogPath == "" {
+			// An empty value means use syslog.
+			if err := setLoggerToSyslog(); err != nil {
+				return "", fmt.Errorf("configuring syslog logger: %w", err)
+			}
+			printLogDebug(os.Stdout, "logging to syslog")
+		} else {
+			// A non-empty value is a file path.
+			if err := setLoggerToFile(effectiveLogPath); err != nil {
+				return "", fmt.Errorf("configuring file logger: %w", err)
+			}
+			printLogDebug(os.Stdout, "logging to: %s", effectiveLogPath)
+		}
+	}
+	return effectiveLogPath, nil
+}
+
+func resolveIntentCommand(envCmd, envRef string, cliCmdOptions []string) (string, error) {
+	cmd := envCmd
+	if cmd != "" {
+		printLogDebug(os.Stderr, "intent command loaded from: $%s_CMD", EnvPrefix)
+	}
+
+	if cmd == "" && envRef != "" {
+		cmd = os.Getenv(envRef)
+		printLogDebug(os.Stderr, "intent command loaded from: $%s", envRef)
+	}
+
+	if len(cliCmdOptions) > 0 {
+		if len(cliCmdOptions) > 1 {
+			return "", ErrCmdNotWrappedInQuotes
+		}
+		cmd = cliCmdOptions[0]
+		printLogDebug(os.Stderr, "intent command loaded from arguments")
+	}
+	return cmd, nil
+}
+
+func determineOperationMode(intentCmd string, checkFlag bool, checkIntentCmdsFile string) (shellMode bool, checkMode bool) {
+	checkMode = checkFlag || checkIntentCmdsFile != ""
+	shellMode = intentCmd == "" && !checkMode
+	return shellMode, checkMode
+}
+
 func parseEnvAndFlags() (Config, error) {
 	envvars, err := parseEnvVars()
 	if err != nil {
@@ -182,32 +241,9 @@ func parseEnvAndFlags() (Config, error) {
 		debug = true
 	}
 
-	// Configure logging based on flag and environment variable precedence.
-	logFileIsSetByFlag := pflag.CommandLine.Changed("log-file")
-	_, logFileIsSetByEnv := os.LookupEnv(EnvPrefix + "_LOGFILE")
-
-	var logVal string
-	if !logFileIsSetByEnv && !logFileIsSetByFlag {
-		log.SetOutput(io.Discard)
-	} else {
-		logVal = envvars.LogFile
-		if logFileIsSetByFlag {
-			logVal = flagLogFile
-		}
-
-		if logVal == "" {
-			// An empty value means use syslog.
-			if err := setLoggerToSyslog(); err != nil {
-				return NoConfig, fmt.Errorf("configuring syslog logger: %w", err)
-			}
-			printLogDebug(os.Stdout, "logging to syslog")
-		} else {
-			// A non-empty value is a file path.
-			if err := setLoggerToFile(logVal); err != nil {
-				return NoConfig, fmt.Errorf("configuring file logger: %w", err)
-			}
-			printLogDebug(os.Stdout, "logging to: %s", logVal)
-		}
+	logPathOrSyslog, err := initializeLogging(envvars.LogFile, flagLogFile)
+	if err != nil {
+		return NoConfig, err
 	}
 
 	printLogDebug(os.Stderr, "loaded env vars: %+v", envvars)
@@ -219,42 +255,27 @@ func parseEnvAndFlags() (Config, error) {
 		printLogWarn(os.Stderr, "both %s and %s environment variables are set", EnvPrefix+"_CMD")
 	}
 
-	cmd := envvars.IntentCmd
-	if cmd != "" {
-		printLogDebug(os.Stderr, "intent command loaded from: $%s_CMD", EnvPrefix)
+	intentCmd, err := resolveIntentCommand(envvars.IntentCmd, flagEnvReference, cmdOptions)
+	if err != nil {
+		return NoConfig, err
 	}
 
-	if cmd == "" && flagEnvReference != "" {
-		cmd = os.Getenv(flagEnvReference)
-		printLogDebug(os.Stderr, "intent command loaded from: $%s", flagEnvReference)
-	}
+	shellMode, checkMode := determineOperationMode(intentCmd, flagCheck, flagCheckIntentCmds)
 
-	if len(cmdOptions) > 0 {
-		if len(cmdOptions) > 1 {
-			return NoConfig, ErrCmdNotWrappedInQuotes
-		}
-
-		cmd = cmdOptions[0]
-		printLogDebug(os.Stderr, "intent command loaded from arguments")
-	}
-
-	checkMode := flagCheck || flagCheckIntentCmds != ""
-	shellMode := cmd == "" && !checkMode
-
-	if cmd != "" {
-		if err := checkCmdSafety(cmd, logVal); err != nil {
+	if intentCmd != "" {
+		if err := checkCmdSafety(intentCmd, logPathOrSyslog); err != nil {
 			return NoConfig, err
 		}
 	}
 
-	shellCmd := strings.Fields(flagShellCmd)
-	if len(shellCmd) == 0 {
-		shellCmd = []string{"bash", "-c"} // Fallback
+	shellCmdFields := strings.Fields(flagShellCmd)
+	if len(shellCmdFields) == 0 {
+		shellCmdFields = []string{"bash", "-c"} // Fallback
 	}
 
 	return Config{
-		IntentCmd:           cmd,
-		Log:                 flagLogFile,
+		IntentCmd:           intentCmd,
+		Log:                 logPathOrSyslog,
 		JailFile:            flagJailFile,
 		Verbose:             flagVerbose,
 		RecordFile:          flagRecordFile,
@@ -262,7 +283,7 @@ func parseEnvAndFlags() (Config, error) {
 		Version:             flagVersion,
 		CheckMode:           checkMode,
 		CheckIntentCmdsFile: flagCheckIntentCmds,
-		ShellCmd:            shellCmd,
+		ShellCmd:            shellCmdFields,
 	}, nil
 }
 
