@@ -6,6 +6,7 @@
 ###############################################################################
 
 GO            ?= go
+GOLANGCI_LINT ?= golangci-lint
 GOOS          ?= $(shell go env GOOS)
 GOARCH        ?= $(shell go env GOARCH)
 FUZZ_TIME     ?= 30s
@@ -52,6 +53,11 @@ build: ## Build binary for a specific platform (e.g., GOOS=linux GOARCH=arm64 ma
 	@mkdir -p build
 	@echo "Building for $(GOOS)/$(GOARCH)..."
 	@GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 $(GO) build $(LDFLAGS) $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o build/cmdjail-$(GOOS)-$(GOARCH) .
+
+#-- Linting
+.PHONY: lint
+lint: ## Run golangci-lint
+	@$(GOLANGCI_LINT) run $(LINT_VERBOSE_CONTROL) ./...
 
 #-- Testing
 .PHONY: test test-units test-features

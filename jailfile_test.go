@@ -201,11 +201,12 @@ func TestCmdMatcher_Matches(t *testing.T) {
 	t.Run("Error on non-executable script", func(t *testing.T) {
 		tmpfile, err := os.CreateTemp("", "test-script")
 		assert.NoError(t, err)
-		defer os.Remove(tmpfile.Name())
+		defer func() { assert.NoError(t, os.Remove(tmpfile.Name())) }()
 
-		tmpfile.WriteString("#!/bin/sh\nexit 0")
-		tmpfile.Close()
-		os.Chmod(tmpfile.Name(), 0o644)
+		_, err = tmpfile.WriteString("#!/bin/sh\nexit 0")
+		assert.NoError(t, err)
+		assert.NoError(t, tmpfile.Close())
+		assert.NoError(t, os.Chmod(tmpfile.Name(), 0o644))
 
 		matcher := NewCmdMatcher(m, tmpfile.Name(), shellCmd)
 		matches, err := matcher.Matches("any command")
