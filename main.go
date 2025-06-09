@@ -74,42 +74,21 @@ func runShell(conf Config, jailFile JailFile) int {
 	scanner := bufio.NewScanner(os.Stdin)
 	isRecordMode := conf.RecordFile != ""
 
-	fmt.Print("cmdjail> ")
-	for scanner.Scan() {
+	for {
+		fmt.Print("cmdjail> ")
+		if !scanner.Scan() {
+			break // End of input (Ctrl+D) or scanner error
+		}
+
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
-			fmt.Print("cmdjail> ")
 			continue
 		}
 
-		if err := checkCmdSafety(line, conf.Log); err != nil {
-			printLogErr(os.Stderr, "%s", err.Error())
-			fmt.Print("cmdjail> ")
-			continue
+		shouldExit, exitCode := processShellCommand(line, conf, jailFile, isRecordMode)
+		if shouldExit {
+			return exitCode
 		}
-
-		if isRecordMode {
-			if err := appendRuleToFile(conf.RecordFile, line); err != nil {
-				printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
-			} else {
-				printLogDebug(os.Stdout, "appended rule to %s: + '%s'", conf.RecordFile, line)
-			}
-
-			if line == "exit" || line == "quit" {
-				return 0
-			} else {
-				runCmd(conf.ShellCmd, line)
-			}
-
-		} else {
-			cmdWasAllowed, _ := evaluateAndRun(line, jailFile, conf.ShellCmd)
-
-			if cmdWasAllowed && (line == "exit" || line == "quit") {
-				return 0
-			}
-		}
-
-		fmt.Print("cmdjail> ")
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -119,6 +98,39 @@ func runShell(conf Config, jailFile JailFile) int {
 
 	fmt.Println() // Print a newline on exit (e.g., Ctrl+D)
 	return 0
+}
+
+// processShellCommand handles a single line of input from the interactive shell.
+// It returns whether the shell should exit and the corresponding exit code.
+func processShellCommand(line string, conf Config, jailFile JailFile, isRecordMode bool) (shouldExit bool, exitCode int) {
+	if err := checkCmdSafety(line, conf.Log); err != nil {
+		printLogErr(os.Stderr, "%s", err.Error())
+		return false, 0 // Continue shell, error already printed
+	}
+
+	isExitCmd := (line == "exit" || line == "quit")
+
+	if isRecordMode {
+		if err := appendRuleToFile(conf.RecordFile, line); err != nil {
+			printLogErr(os.Stderr, "appending to record file %s: %s", conf.RecordFile, err.Error())
+		} else {
+			printLogDebug(os.Stdout, "appended rule to %s: + '%s'", conf.RecordFile, line)
+		}
+
+		if isExitCmd {
+			return true, 0 // Exit shell normally
+		}
+		runCmd(conf.ShellCmd, line) // Run the command
+		return false, 0             // Continue shell
+	}
+
+	// Not record mode
+	cmdWasAllowed, _ := evaluateAndRun(line, jailFile, conf.ShellCmd)
+	if cmdWasAllowed && isExitCmd {
+		return true, 0 // Exit shell normally
+	}
+
+	return false, 0 // Continue shell
 }
 
 func evaluateAndRun(intentCmd string, jailFile JailFile, shellCmd []string) (bool, int) {
@@ -142,9 +154,36 @@ func evaluateAndRun(intentCmd string, jailFile JailFile, shellCmd []string) (boo
 func runCheckMode(conf Config, jailFile JailFile) int {
 	printMsg(os.Stdout, "Jail file '%s' syntax is valid.", conf.JailFile)
 
-	var commands []string
-	var err error
-	source := "command line"
+	commands, source, err := loadCommandsForCheckMode(conf)
+	if err != nil {
+		// Error already logged by loadCommandsForCheckMode if it's critical
+		return 1
+	}
+
+	if len(commands) == 0 {
+		printMsg(os.Stdout, "No commands provided to check. Exiting.")
+		return 0
+	}
+
+	printMsg(os.Stdout, "\nTesting commands from %s...", source)
+	blockedCount := 0
+	for _, cmd := range commands {
+		result := evaluateCmd(cmd, jailFile)
+		printCheckCommandResult(result)
+		if !result.Allowed {
+			blockedCount++
+		}
+	}
+
+	printMsg(os.Stdout, "\nCheck complete. %d/%d commands would be blocked.", blockedCount, len(commands))
+	if blockedCount > 0 {
+		return 1
+	}
+	return 0
+}
+
+func loadCommandsForCheckMode(conf Config) (commands []string, source string, err error) {
+	source = "command line" // Default source
 
 	if conf.CheckIntentCmdsFile != "" {
 		var r io.Reader
@@ -157,7 +196,7 @@ func runCheckMode(conf Config, jailFile JailFile) int {
 			file, fileErr := os.Open(conf.CheckIntentCmdsFile)
 			if fileErr != nil {
 				printLogErr(os.Stderr, "reading test file %s: %v", conf.CheckIntentCmdsFile, fileErr)
-				return 1
+				return nil, source, fileErr
 			}
 			defer file.Close()
 			r = file
@@ -165,42 +204,24 @@ func runCheckMode(conf Config, jailFile JailFile) int {
 		commands, err = readLines(r)
 		if err != nil {
 			printLogErr(os.Stderr, "reading test commands from %s: %v", source, err)
-			return 1
+			return nil, source, err
 		}
 	} else if conf.IntentCmd != "" {
 		commands = []string{conf.IntentCmd}
 	}
+	return commands, source, nil
+}
 
-	if len(commands) == 0 {
-		printMsg(os.Stdout, "No commands provided to check. Exiting.")
-		return 0
+func printCheckCommandResult(result CheckResult) {
+	if result.Allowed {
+		printMsg(os.Stdout, "\n[ALLOWED] '%s'", result.Cmd)
+	} else {
+		printMsg(os.Stdout, "\n[BLOCKED] '%s'", result.Cmd)
 	}
-
-	printMsg(os.Stdout, "\nTesting commands from %s...", source)
-	blockedCount := 0
-	for _, cmd := range commands {
-		result := evaluateCmd(cmd, jailFile)
-		if result.Allowed {
-			printMsg(os.Stdout, "\n[ALLOWED] '%s'", cmd)
-			printMsg(os.Stdout, "  Reason: %s", result.Reason)
-			if result.Matcher != nil {
-				printMsg(os.Stdout, "  Matcher: %s", result.Matcher.Raw())
-			}
-		} else {
-			blockedCount++
-			printMsg(os.Stdout, "\n[BLOCKED] '%s'", cmd)
-			printMsg(os.Stdout, "  Reason: %s", result.Reason)
-			if result.Matcher != nil {
-				printMsg(os.Stdout, "  Matcher: %s", result.Matcher.Raw())
-			}
-		}
+	printMsg(os.Stdout, "  Reason: %s", result.Reason)
+	if result.Matcher != nil {
+		printMsg(os.Stdout, "  Matcher: %s", result.Matcher.Raw())
 	}
-
-	printMsg(os.Stdout, "\nCheck complete. %d/%d commands would be blocked.", blockedCount, len(commands))
-	if blockedCount > 0 {
-		return 1
-	}
-	return 0
 }
 
 // readLines reads from a reader and returns its lines as a slice of strings.
@@ -229,24 +250,33 @@ func getConfig() Config {
 	return conf
 }
 
-func getJailFile(conf Config) JailFile {
-	var jailFileReader io.Reader
-	var err error
-
-	if conf.JailFile == "-" && !conf.Shell {
+func openJailFileReader(conf Config) (io.Reader, error) {
+	if conf.JailFile == "-" && !conf.Shell { // In shell mode, stdin is for commands, not jailfile
 		printLogDebug(os.Stdout, "reading jail file from: <stdin>")
-		jailFileReader = os.Stdin
-	} else {
-		printLogDebug(os.Stdout, "reading jail file from: %s", conf.JailFile)
-		jailFileReader, err = os.Open(conf.JailFile)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				printLogErr(os.Stderr, "finding jail file: %s", conf.JailFile)
-			} else {
-				printLogErr(os.Stderr, "opening jail file: %s: %s", conf.JailFile, err.Error())
-			}
-			os.Exit(1)
+		return os.Stdin, nil
+	}
+
+	printLogDebug(os.Stdout, "reading jail file from: %s", conf.JailFile)
+	file, err := os.Open(conf.JailFile)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			printLogErr(os.Stderr, "finding jail file: %s", conf.JailFile)
+		} else {
+			printLogErr(os.Stderr, "opening jail file: %s: %s", conf.JailFile, err.Error())
 		}
+		return nil, err // Return error to be handled by caller
+	}
+	return file, nil
+}
+
+func getJailFile(conf Config) JailFile {
+	jailFileReader, err := openJailFileReader(conf)
+	if err != nil {
+		os.Exit(1) // Exit if file couldn't be opened
+	}
+	// If the reader is a file, ensure it's closed.
+	if closer, ok := jailFileReader.(io.Closer); ok && jailFileReader != os.Stdin {
+		defer closer.Close()
 	}
 
 	jailFile, err := parseJailFile(conf, jailFileReader)

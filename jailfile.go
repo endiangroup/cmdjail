@@ -50,39 +50,25 @@ func parseJailFile(conf Config, f io.Reader) (JailFile, error) {
 
 	var jf JailFile
 	for i := 1; scanner.Scan(); i++ {
-		line := scanner.Text()
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+		originalLine := scanner.Text()
+		trimmedLine := strings.TrimSpace(originalLine)
+
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") {
+			continue // Skip empty lines and comments
 		}
 
-		if !strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "+") {
-			return jf, NewJailFileParserErr(conf, i, line, rsnMissingPlusOrMinus)
+		matcher, ruleType, err := parseRuleLine(trimmedLine, i, conf)
+		if err != nil {
+			// Pass originalLine for more accurate error reporting if needed,
+			// though NewJailFileParserErr uses the (trimmed) line it receives.
+			return JailFile{}, err
 		}
 
-		rule := strings.TrimSpace(line[1:])
-		if rule == "" {
-			return jf, NewJailFileParserErr(conf, i, line, rsnNoMatcher)
-		}
-
-		var err error
-		var m Matcher
-		if strings.HasPrefix(rule, "'") {
-			m = NewLiteralMatcher(newMatcher(line, conf.JailFile, i), strings.TrimPrefix(rule, "'"))
-		} else if strings.HasPrefix(rule, "r'") {
-			m, err = NewRegexMatcher(newMatcher(line, conf.JailFile, i), strings.TrimPrefix(rule, "r'"))
-			if err != nil {
-				return jf, NewJailFileParserErr(conf, i, line, err.Error())
-			}
-		} else {
-			m = NewCmdMatcher(newMatcher(line, conf.JailFile, i), rule, conf.ShellCmd)
-		}
-
-		switch line[0] {
+		switch ruleType {
 		case '+':
-			jf.Allow = append(jf.Allow, m)
+			jf.Allow = append(jf.Allow, matcher)
 		case '-':
-			jf.Deny = append(jf.Deny, m)
+			jf.Deny = append(jf.Deny, matcher)
 		}
 	}
 
@@ -95,6 +81,38 @@ func parseJailFile(conf Config, f io.Reader) (JailFile, error) {
 	}
 
 	return jf, nil
+}
+
+// parseRuleLine processes a single non-empty, non-comment line from the jail file.
+// It returns the parsed Matcher, the rule type ('+' or '-'), and any error.
+func parseRuleLine(line string, lineNumber int, conf Config) (Matcher, byte, error) {
+	if !strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "+") {
+		return nil, 0, NewJailFileParserErr(conf, lineNumber, line, rsnMissingPlusOrMinus)
+	}
+
+	ruleType := line[0]
+	ruleDefinition := strings.TrimSpace(line[1:])
+
+	if ruleDefinition == "" {
+		return nil, 0, NewJailFileParserErr(conf, lineNumber, line, rsnNoMatcher)
+	}
+
+	var m Matcher
+	var err error
+	baseMatcher := newMatcher(line, conf.JailFile, lineNumber) // Pass the full original line for Raw()
+
+	if strings.HasPrefix(ruleDefinition, "'") {
+		m = NewLiteralMatcher(baseMatcher, strings.TrimPrefix(ruleDefinition, "'"))
+	} else if strings.HasPrefix(ruleDefinition, "r'") {
+		m, err = NewRegexMatcher(baseMatcher, strings.TrimPrefix(ruleDefinition, "r'"))
+		if err != nil {
+			return nil, 0, NewJailFileParserErr(conf, lineNumber, line, err.Error())
+		}
+	} else {
+		m = NewCmdMatcher(baseMatcher, ruleDefinition, conf.ShellCmd)
+	}
+
+	return m, ruleType, nil
 }
 
 func errIsAny(target error, errs ...error) bool {
