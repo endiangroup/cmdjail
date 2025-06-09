@@ -61,9 +61,6 @@ jobs:
       - name: Run Fuzz Tests
         run: make test-fuzz FUZZ_TIME=10s # Shorter duration for CI
 
-      - name: Build for CI check (local OS/ARCH)
-        run: make bin/cmdjail
-
   create_release:
     name: Create GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
