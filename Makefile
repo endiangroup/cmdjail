@@ -42,7 +42,7 @@ help:
 	| awk 'BEGIN {FS = ":.*?## "}; {printf "\033[32m %-43s\033[0m %s\n", $$1, $$2}' \
 	| sed -e 's/\[32m #-- /[33m/'
 
-bin/cmdjail: bin *.go
+bin/cmdjail: *.go
 	@mkdir -p bin
 	@$(GO) build $(LDFLAGS) $(BUILD_VERBOSE_CONTROL) $(BUILD_CACHE_CONTROL) -o bin/cmdjail .
 
