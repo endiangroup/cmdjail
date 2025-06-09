@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     tags:
-      - "v*.*.*" # Trigger on version tags like v1.0.0
+      - "v*.*.*"
   pull_request:
     branches: [main]
 
@@ -28,7 +28,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.58 # Specify a linter version
+          version: v1.64
           args: --timeout=5m
 
   test:
@@ -39,7 +39,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Required for Makefile versioning
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -71,7 +71,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write # To create releases
+      contents: write
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
@@ -98,7 +98,7 @@ jobs:
     needs: create_release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # To upload assets to the release
+      contents: write
     strategy:
       matrix:
         goos: [linux, darwin]
@@ -112,7 +112,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Required for Makefile versioning
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
