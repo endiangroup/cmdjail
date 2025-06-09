@@ -49,8 +49,7 @@ jobs:
       - name: Install ShellSpec
         run: |
           SHELLSPEC_VERSION=0.28.1
-          curl -fsSL "https://github.com/shellspec/shellspec/releases/download/${SHELLSPEC_VERSION}/shellspec-dist.tar.gz" | tar xz
-          sudo cp shellspec/shellspec /usr/local/bin/
+          curl -fsSL https://git.io/shellspec | sh -s ${SHELLSPEC_VERSION} --yes
           shellspec --version
 
       - name: Run Unit Tests
