@@ -1,0 +1,16 @@
++ 'find /some/absolute/path/backup.marker
++ 'df -T /some/absolute/path
++ 'find /some/absolute/path/ -maxdepth 1 -type d -name "????-??-??-??????" -prune | sort -r
++ 'find /some/absolute/path/backup.inprogress
++ r'^cd /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6};pwd$
++ r'^find /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6} -type d$
++ r'^mkdir -p -- /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$
++ r'^echo [0-9]+ > /some/absolute/path/backup.inprogress$
++ r'^rsync --server -lHogDtprze.iLsfxCIvu --log-format=%i --stats --numeric-ids . /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}\/$
++ r'^rsync --server -lHogDtprze.iLsfxCIvu --log-format=%i --stats --numeric-ids --link-dest /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6} . /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}\/$
++ 'rm -f -- /some/absolute/path/latest
++ r^'ln -s -- [0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6} /some/absolute/path\/latest$
++ 'rm -f -- /some/absolute/path/backup.inprogress
++ r'^cd /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6};pwd$
++ 'cat /some/absolute/path/backup.inprogress
++ r'^mv -- /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6} /some/absolute/path\/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$

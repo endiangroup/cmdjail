@@ -1,0 +1,1 @@
+restrict,command="/usr/local/bin/cmdjail -e SSH_ORIGINAL_COMMAND -j /etc/cmdjail/rsync-time-backup.jail -l /var/log/cmdjail.log" ssh-ed25519 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  user@host
