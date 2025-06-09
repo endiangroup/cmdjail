@@ -156,7 +156,9 @@ Describe 'cmdjail.sh'
     End
     It 'exits 0 when ls is whitelisted amongst other cmds'
       cmdjail() { 
-        echo -e "+ r'^cat\n+ r'^ls\n+ 'find" > bin/.cmd.jail
+        echo "+ r'^cat" > bin/.cmd.jail
+        echo "+ r'^ls" >> bin/.cmd.jail
+        echo "+ r'^find" >> bin/.cmd.jail 
         bin/cmdjail -- 'ls -al'; 
       }
       When run cmdjail

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -168,5 +169,51 @@ func TestItSuccesfullyParsesTheJailFile(t *testing.T) {
 		assert.Equal(t, "ls -l", jf.Allow[0].(LiteralMatcher).str)
 		assert.Equal(t, "+ 'ls -l", jf.Allow[0].Raw())
 		assert.Equal(t, "- r'^rm", jf.Deny[0].Raw())
+	})
+}
+
+func TestCmdMatcher_Matches(t *testing.T) {
+	m := newMatcher("", "/tmp/.cmd.jail", 1)
+	shellCmd := []string{"/bin/sh", "-c"}
+
+	t.Run("Success on exit 0", func(t *testing.T) {
+		matcher := NewCmdMatcher(m, "true", shellCmd)
+		matches, err := matcher.Matches("ls")
+		assert.NoError(t, err)
+		assert.True(t, matches)
+	})
+	t.Run("No match on non-zero exit", func(t *testing.T) {
+		matcher := NewCmdMatcher(m, "false", shellCmd)
+		matches, err := matcher.Matches("any command")
+		assert.NoError(t, err)
+		assert.False(t, matches)
+	})
+
+	t.Run("Error on command not found", func(t *testing.T) {
+		matcher := NewCmdMatcher(m, "/path/to/nonexistent/script", shellCmd)
+		matches, err := matcher.Matches("any command")
+
+		assert.False(t, matches)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exit status 127")
+	})
+
+	t.Run("Error on non-executable script", func(t *testing.T) {
+		tmpfile, err := os.CreateTemp("", "test-script")
+		assert.NoError(t, err)
+		defer os.Remove(tmpfile.Name())
+
+		tmpfile.WriteString("#!/bin/sh\nexit 0")
+		tmpfile.Close()
+		os.Chmod(tmpfile.Name(), 0o644)
+
+		matcher := NewCmdMatcher(m, tmpfile.Name(), shellCmd)
+		matches, err := matcher.Matches("any command")
+
+		assert.Error(t, err)
+		assert.False(t, matches)
+		if err != nil {
+			assert.Contains(t, err.Error(), "exit status 126")
+		}
 	})
 }

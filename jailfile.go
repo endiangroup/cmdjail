@@ -148,10 +148,13 @@ func (c CmdMatcher) Matches(intentCmd string) (bool, error) {
 	}
 
 	if exerr, ok := err.(*exec.ExitError); ok {
-		printLogDebug(os.Stdout, "%s:%d: matcher '%s:%s", c.jailFile, c.lineNumber, c.raw, exerr.Stderr)
-		return false, nil
+		if exerr.ExitCode() == 1 {
+			return false, nil
+		}
+
+		printLogErr(os.Stderr, "%s:%d: matcher '%s': %s\n%s", c.jailFile, c.lineNumber, c.raw, exerr.Error(), exerr.Stderr)
 	}
-	printLogErr(os.Stdout, "%s:%d: matcher '%s:%s", c.jailFile, c.lineNumber, c.raw, err.Error())
+
 	return false, err
 }
 
